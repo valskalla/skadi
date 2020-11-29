@@ -1,7 +1,7 @@
 <p align="center">
   <img src="skadi.svg" width="1100px" />  
   <br/>
-  <i>The goddess of bowhunting & skiing that traces her prey through the winter of mountains</i>
+  <i>- The goddess of bowhunting & skiing that traces her prey through the winter of mountains</i>
 </p>
 
 ----
@@ -10,3 +10,5 @@ Skadi is an abstraction over [distributed tracing](https://opentracing.io/docs/o
 provides a unified functional API for various tracers with reasoning & usability in mind.
 
 # WIP
+
+Library is being battle-tested. Once the results are known, documentation will be completed.

@@ -42,6 +42,18 @@ lazy val tests = project
         dependencies.scalaCheck :: Nil
   )
 
+lazy val docs = (project in file("skadi-docs"))
+  .settings(sharedSettings)
+  .settings(noPublish)
+  .settings(
+    mdocVariables := Map(
+      "VERSION" -> version.value
+    ),
+    mdocOut := file(".")
+  )
+  .dependsOn(`skadi-core`, `skadi-laws`, `skadi-monix`, `skadi-opentracing`)
+  .enablePlugins(MdocPlugin)
+
 lazy val root = project
   .in(file("."))
   .settings(
@@ -79,7 +91,7 @@ lazy val sharedSettings = Seq(
   scalaVersion := "2.13.2",
   organization := "com.github.valskalla",
   addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
-  crossScalaVersions := scalaVersions,
+  //crossScalaVersions := scalaVersions,
   classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.ScalaLibrary,
   scalacOptions := scalacOptionsVersion(scalaVersion.value),
   scalacOptions in (Compile, console) ~= (_.filterNot(
