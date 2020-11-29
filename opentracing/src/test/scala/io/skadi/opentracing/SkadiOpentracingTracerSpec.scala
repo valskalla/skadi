@@ -1,0 +1,127 @@
+package io.skadi.opentracing
+
+import java.time.Instant
+import java.util.concurrent.TimeUnit
+
+import cats.data.Kleisli
+import cats.effect.IO
+import cats.syntax.all._
+import io.opentracing.mock.MockTracer
+import io.opentracing.tag.Tags
+import io.skadi.opentracing.impl.OpentracingContext
+import io.skadi.{SkadiSpec, Span, Tag, TracerClock}
+import org.scalacheck.Gen
+
+import scala.jdk.CollectionConverters._
+
+class SkadiOpentracingTracerSpec extends SkadiSpec {
+
+  type F[A] = Kleisli[IO, Option[Span], A]
+
+  test("SkadiOpentracing.tracer builds & reports span to underlying OpenTracing tracer") {
+    val now = Instant.now()
+    implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
+
+    forAll(Gen.alphaNumStr, Gen.listOf(genTagPair), genTraceLog) { (operationName, tags, log) =>
+      val mockTracer = new MockTracer()
+      SkadiOpentracing[F](mockTracer).tracer
+        .traceWith(operationName, tags: _*)(span => (span.withLog(log), 42).pure[F])
+        .run(None)
+        .unsafeRunSync()
+
+      val finishedSpan = mockTracer.finishedSpans().get(0)
+
+      finishedSpan.operationName() shouldBe operationName
+      finishedSpan.tags().asScala should contain allElementsOf tags.map {
+        case (key, Tag.IntTag(v))     => key -> v
+        case (key, Tag.StringTag(v))  => key -> v
+        case (key, Tag.BooleanTag(v)) => key -> v
+      }.toMap
+      val logEntry = finishedSpan.logEntries().asScala.head
+      logEntry.timestampMicros() shouldBe {
+        TimeUnit.SECONDS.toMicros(log.timestamp.getEpochSecond) + TimeUnit.NANOSECONDS.toMicros(log.timestamp.getNano)
+      }
+      logEntry.fields().get("event") shouldBe log.message
+    }
+  }
+
+  test("SkadiOpentracing.tracer reports exception in span") {
+    val now = Instant.now()
+    implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
+    val mockTracer = new MockTracer()
+    val e: Throwable = new Exception("err")
+    SkadiOpentracing[F](mockTracer).tracer
+      .trace("op_name") {
+        e.raiseError[F, Int]
+      }
+      .run(None)
+      .attempt
+      .unsafeRunSync()
+
+    val finishedSpan = mockTracer.finishedSpans().get(0)
+
+    finishedSpan.tags().get(Tags.ERROR.getKey) shouldBe true
+    val logEntry = finishedSpan.logEntries().get(0)
+    logEntry.timestampMicros() shouldBe {
+      TimeUnit.SECONDS.toMicros(now.getEpochSecond) + TimeUnit.NANOSECONDS.toMicros(now.getNano)
+    }
+    logEntry.fields().get("event") shouldBe Tags.ERROR.getKey
+    logEntry.fields().get("error") shouldBe e.toString
+  }
+
+  test("SkadiOpentracing.tracer correctly sets parent span") {
+    val now = Instant.now()
+    implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
+    val mockTracer = new MockTracer()
+    val tracer = SkadiOpentracing[F](mockTracer).tracer
+
+    tracer
+      .trace("parent") {
+        tracer.trace("child") {
+          42.pure[F]
+        }
+      }
+      .run(None)
+      .unsafeRunSync()
+
+    val child :: parent :: Nil = mockTracer.finishedSpans().asScala.toList
+
+    child.parentId() shouldBe parent.context().spanId()
+  }
+
+  test("SkadiOpentracing.traceCarrier extracts injected context") {
+    val now = Instant.now()
+    implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
+    val mockTracer = new MockTracer()
+    val tracer = SkadiOpentracing[F](mockTracer).tracer
+    val traceCarrier = SkadiOpentracing[F](mockTracer).traceCarrier.throughHttpHeaders
+
+    val Some(spanContext: OpentracingContext) = tracer
+      .trace("op_name") {
+        traceCarrier.getCarrier.map(_.get).flatMap(carrier => traceCarrier.fromCarrier(carrier))
+      }
+      .run(None)
+      .unsafeRunSync()
+
+    val finishedSpan = mockTracer.finishedSpans().get(0)
+    spanContext.context.toSpanId shouldBe finishedSpan.context().toSpanId
+    spanContext.context.toTraceId shouldBe finishedSpan.context().toTraceId
+
+  }
+
+  test("SkadiOpentracing.traceCarrier extracts nothing if context is empty") {
+    val now = Instant.now()
+    implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
+    val mockTracer = new MockTracer()
+    val traceCarrier = SkadiOpentracing[F](mockTracer).traceCarrier.throughTextMap
+    traceCarrier.fromCarrier(Map.empty).run(None).unsafeRunSync() shouldBe None
+  }
+
+  test("SkadiOpentracing.traceCarrier injects nothing if there is no span in context") {
+    val now = Instant.now()
+    implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
+    val mockTracer = new MockTracer()
+    val traceCarrier = SkadiOpentracing[F](mockTracer).traceCarrier.throughTextMap
+    traceCarrier.getCarrier.run(None).unsafeRunSync() shouldBe None
+  }
+}
