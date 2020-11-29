@@ -38,23 +38,23 @@ import io.skadi.{Trace, _}
   *    Please, avoid re-using the same instance of `io.skadi.Span` for multiple operations, as it encapsulates running
   *    `io.opentracing.Span` inside, and therefore might be non-referentially transparent (implementation-dependent).
   *
-  * Best practice of avoiding shooting in one's leg is to behave & use API provided by [[io.skadi.Tracer]].
+  * Best practice of avoiding shooting in one's leg is to behave & use API provided by `io.skadi.Tracer`.
   * Skadi in general is doing its best to keep everything lawful & functional, but to the limits.
   *
-  * Another fancy way to catch a runtime exception is to provide [[io.skadi.Span]] that was built
+  * Another fancy way to catch a runtime exception is to provide `io.skadi.Span` that was built
   * outside of [[SkadiOpentracing#tracer]] or [[SkadiOpentracing#traceCarrier]].
-  * Please, don't do it as again everything depends on vendor implementation of `io.opentracing.Tracer`.
+  * Please, don't do it as again everything depends on vendor implementation of io.opentracing.Tracer`.
   */
 case class SkadiOpentracing[F[_]](private val openTracer: OpenTracer)(implicit F: Sync[F], clock: TracerClock[F], trace: Trace[F]) {
   self =>
 
   /**
-    * Create an instance of [[io.skadi.Tracer]] on top of provided `io.opentracing.Tracer`
+    * Create an instance of `io.skadi.Tracer` on top of provided `io.opentracing.Tracer`
     */
   def tracer: Tracer[F] = new OpentracingTracer(openTracer)
 
   /**
-    * Returns builder of [[io.skadi.TraceCarrier]] on top of provided `io.opentracing.Tracer`
+    * Returns builder of `io.skadi.TraceCarrier` on top of provided `io.opentracing.Tracer`
     */
   def traceCarrier: TraceCarrierBuilder[F] = new TraceCarrierBuilder(openTracer)
 
