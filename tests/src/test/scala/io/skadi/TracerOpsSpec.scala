@@ -24,8 +24,8 @@ class TracerOpsSpec extends SkadiSpec {
   }
 
   test("Tracer[F : Stateful] sets tags") {
-    forAll(genSpan, Gen.listOf(genTagPair)) { (span, tags) =>
-      val Some(s: TestSpan) = Tracer.noop[F].setTags(tags: _*).runS(Some(span)).value
+    forAll(genSpan, Gen.mapOf(genTagPair)) { (span, tags) =>
+      val Some(s: TestSpan) = Tracer.noop[F].setTags(tags.toList: _*).runS(Some(span)).value
       s.tags.toList should contain allElementsOf tags
     }
   }
