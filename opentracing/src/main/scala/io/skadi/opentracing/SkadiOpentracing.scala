@@ -41,7 +41,7 @@ import io.skadi.{Trace, _}
   * Skadi in general is doing its best to keep everything lawful & functional, but to the limits.
   *
   * Another fancy way to catch a runtime exception is to provide `io.skadi.Span` that was built
-  * outside of [[SkadiOpentracing#tracer]] or [[SkadiOpentracing#traceCarrier]].
+  * outside of [[SkadiOpentracing#tracer]].
   * Please, don't do it as again everything depends on vendor implementation of `io.opentracing.Tracer`.
   */
 case class SkadiOpentracing[F[_]](private val openTracer: OpenTracer)(
