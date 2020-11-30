@@ -3,15 +3,13 @@ package io.skadi.opentracing.impl
 import java.time.Instant
 
 import io.opentracing.mock.MockTracer
-import io.skadi.SkadiSpec
+import io.skadi.{SkadiSpec, Span}
 import org.scalacheck.Gen
 
 class OpentracingSpec extends SkadiSpec {
 
   test("withTag adds tag") {
-    forAll(genOpentracingSpan, genTagPair) { (span, tag) =>
-      span.withTag(tag._1, tag._2).asInstanceOf[OpentracingSpan].tags should contain(tag)
-    }
+    forAll(genOpentracingSpan, genTagPair)((span, tag) => span.withTag(tag._1, tag._2).tags should contain(tag))
   }
 
   test("withTag overwrites tag") {
@@ -19,14 +17,14 @@ class OpentracingSpec extends SkadiSpec {
       span
         .withTag(tag._1, tag._2)
         .withTag(tag._1, anotherTag)
-        .asInstanceOf[OpentracingSpan]
+        .data
         .tags should contain(tag.copy(_2 = anotherTag))
     }
   }
 
   test("withTags adds tags") {
     forAll(genOpentracingSpan, Gen.listOf(genTagPair)) { (span, tags) =>
-      span.withTags(tags: _*).asInstanceOf[OpentracingSpan].tags should contain allElementsOf tags
+      span.withTags(tags: _*).tags should contain allElementsOf tags
     }
   }
 
@@ -35,7 +33,7 @@ class OpentracingSpec extends SkadiSpec {
       span
         .withTags(tags: _*)
         .withTags(tags.head._1 -> anotherTag)
-        .asInstanceOf[OpentracingSpan]
+        .data
         .tags should contain allElementsOf tags.head.copy(_2 = anotherTag) :: tags.tail
     }
   }
@@ -81,11 +79,13 @@ class OpentracingSpec extends SkadiSpec {
       logs <- Gen.listOf(genTraceLog)
     } yield {
       OpentracingSpan(
-        name,
-        tags,
-        exception,
-        stopTime,
-        logs,
+        data = Span.Data(
+          name = name,
+          tags = tags,
+          logs = logs,
+          exception = exception,
+          stopTime = stopTime
+        ),
         new MockTracer().buildSpan(name).start()
       )
     }

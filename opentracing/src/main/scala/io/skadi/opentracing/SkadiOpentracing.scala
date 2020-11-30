@@ -18,7 +18,6 @@ package io.skadi.opentracing
 
 import cats.effect.Sync
 import io.opentracing.{Tracer => OpenTracer}
-import io.skadi.opentracing.impl.OpentracingTracer
 import io.skadi.{Trace, _}
 
 /**
@@ -33,29 +32,28 @@ import io.skadi.{Trace, _}
   * That decision has a far reaching consequences for any abstraction built on top of OpenTracing API.
   *
   * It's impossible to create a child span without providing implementation-dependant `io.opentracing.SpanContext`, therefore:
-  *  - OpenTracing Span can't be created lazily on report. It must be initialized right away, so children could get a context
-  *  - Span reporting is not referentially-transparent. After span is finished, undefined behavior appears.
+  *  - OpenTracing Span can't be created lazily on report. It must be initialized right away, so children could get a context any time
+  *  - Span reporting is not referentially-transparent. After span is finished, undefined behavior appears according to specification.
   *    Please, avoid re-using the same instance of `io.skadi.Span` for multiple operations, as it encapsulates running
-  *    `io.opentracing.Span` inside, and therefore might be non-referentially transparent (implementation-dependent).
+  *    `io.opentracing.Span` inside, and therefore might be non-referentially transparent (it's implementation-dependent).
   *
   * Best practice of avoiding shooting in one's leg is to behave & use API provided by `io.skadi.Tracer`.
   * Skadi in general is doing its best to keep everything lawful & functional, but to the limits.
   *
   * Another fancy way to catch a runtime exception is to provide `io.skadi.Span` that was built
   * outside of [[SkadiOpentracing#tracer]] or [[SkadiOpentracing#traceCarrier]].
-  * Please, don't do it as again everything depends on vendor implementation of io.opentracing.Tracer`.
+  * Please, don't do it as again everything depends on vendor implementation of `io.opentracing.Tracer`.
   */
-case class SkadiOpentracing[F[_]](private val openTracer: OpenTracer)(implicit F: Sync[F], clock: TracerClock[F], trace: Trace[F]) {
+case class SkadiOpentracing[F[_]](private val openTracer: OpenTracer)(
+    implicit F: Sync[F],
+    clock: TracerClock[F],
+    trace: Trace[F]
+) {
   self =>
 
   /**
-    * Create an instance of `io.skadi.Tracer` on top of provided `io.opentracing.Tracer`
+    * Create an builder of `io.skadi.Tracer` and `io.skadi.TraceCarrier` on top of provided `io.opentracing.Tracer`
     */
-  def tracer: Tracer[F] = new OpentracingTracer(openTracer)
-
-  /**
-    * Returns builder of `io.skadi.TraceCarrier` on top of provided `io.opentracing.Tracer`
-    */
-  def traceCarrier: TraceCarrierBuilder[F] = new TraceCarrierBuilder(openTracer)
+  def tracer: TracerBuilder[F] = new TracerBuilder[F](openTracer)
 
 }

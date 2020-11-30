@@ -25,28 +25,23 @@ import io.skadi._
 
 abstract class DefaultTracer[F[_]](implicit clock: TracerClock[F], F: Sync[F], trace: Trace[F]) extends Tracer[F] {
   def trace[A](operationName: String, tags: (String, Tag)*)(fa: F[A]): F[A] =
-    traceWithParent(operationName, None, tags)(span => fa.tupleLeft(span))
+    traceWith(operationName, None, tags: _*)(span => fa.tupleLeft(span))
 
   def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A]): F[A] =
-    trace(operationName, parent.context, tags: _*)(fa)
+    trace(operationName, Some(parent.context), tags: _*)(fa)
 
-  def trace[A](operationName: String, parent: Context, tags: (String, Tag)*)(fa: F[A]): F[A] =
-    traceWithParent(operationName, Some(parent), tags)(span => fa.tupleLeft(span))
+  def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A]): F[A] =
+    traceWith(operationName, parent, tags: _*)(span => fa.tupleLeft(span))
 
   def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: Span => F[(Span, A)]): F[A] =
-    traceWithParent(operationName, None, tags)(fa)
+    traceWith(operationName, None, tags: _*)(fa)
 
   def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
       fa: Span => F[(Span, A)]
   ): F[A] =
-    traceWith(operationName, parent.context, tags: _*)(fa)
+    traceWith(operationName, Some(parent.context), tags: _*)(fa)
 
-  def traceWith[A](operationName: String, parent: Context, tags: (String, Tag)*)(
-      fa: Span => F[(Span, A)]
-  ): F[A] =
-    traceWithParent(operationName, Some(parent), tags)(fa)
-
-  protected def traceWithParent[A](operationName: String, parent: Option[Context], tags: Seq[(String, Tag)])(
+  def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
       fa: Span => F[(Span, A)]
   ): F[A] =
     Ref.of[F, Option[Span]](None).flatMap { ref =>

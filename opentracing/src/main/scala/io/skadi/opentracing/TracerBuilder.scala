@@ -4,25 +4,29 @@ import cats.effect.Sync
 import cats.syntax.all._
 import io.opentracing.propagation.{Format, TextMap, TextMapAdapter}
 import io.opentracing.{SpanContext, Tracer => OTracer}
-import io.skadi.opentracing.impl.{OpentracingContext, OpentracingSpan}
-import io.skadi.{Context, Span, Trace, TraceCarrier}
+import io.skadi.opentracing.impl.{OpentracingContext, OpentracingSpan, OpentracingTracer}
+import io.skadi.{Context, Span, Trace, TraceCarrier, Tracer, TracerClock}
 
 import scala.jdk.CollectionConverters._
 
-class TraceCarrierBuilder[F[_]](openTracer: OTracer)(implicit F: Sync[F], trace: Trace[F]) {
+/**
+  * Builder of `io.skadi.Tracer` that creates a combination of `Tracer` and `TraceCarrier` as a result.
+  * It's only required to choose the propagation protocol
+  */
+class TracerBuilder[F[_]](openTracer: OTracer)(implicit F: Sync[F], t: Trace[F], tracerClock: TracerClock[F]) {
 
   /**
-    * Trace carrier that specifically deals with HTTP headers
+    * Tracer that specifically deals with HTTP headers as carrier
     */
-  def throughHttpHeaders: TraceCarrier[F, Map[String, String]] = throughMap(Format.Builtin.HTTP_HEADERS)
+  def throughHttpHeaders: Tracer[F] with TraceCarrier[F, Map[String, String]] = throughMap(Format.Builtin.HTTP_HEADERS)
 
   /**
-    * Trace carrier that works with any general Text map
+    * Tracer that works with any general Text map as carrier
     */
-  def throughTextMap: TraceCarrier[F, Map[String, String]] = throughMap(Format.Builtin.TEXT_MAP)
+  def throughTextMap: Tracer[F] with TraceCarrier[F, Map[String, String]] = throughMap(Format.Builtin.TEXT_MAP)
 
-  private def throughMap(format: Format[TextMap]): TraceCarrier[F, Map[String, String]] =
-    new TraceCarrier[F, Map[String, String]] {
+  private def throughMap(format: Format[TextMap]): Tracer[F] with TraceCarrier[F, Map[String, String]] =
+    new OpentracingTracer[F](openTracer) with TraceCarrier[F, Map[String, String]] {
       def fromCarrier(carrier: Map[String, String]): F[Option[Context]] = F.delay {
         openTracer.extract(format, new TextMapAdapter(carrier.asJava)) match {
           case null => None
@@ -31,7 +35,7 @@ class TraceCarrierBuilder[F[_]](openTracer: OTracer)(implicit F: Sync[F], trace:
         }
       }
 
-      def getCarrier: F[Option[Map[String, String]]] = trace.getSpan.flatMap {
+      def getCarrier: F[Option[Map[String, String]]] = t.getSpan.flatMap {
         case Some(span) => toContext(span).map(Some(_))
         case _          => F.pure(None)
       }

@@ -49,8 +49,13 @@ private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implici
         }
 
         OpentracingSpan(
-          name = operationName,
-          tags = tags.toMap,
+          data = Span.Data(
+            name = operationName,
+            tags = tags.toMap,
+            logs = List.empty,
+            exception = None,
+            stopTime = None
+          ),
           underlying = withParent.ignoreActiveSpan().start()
         )
       }

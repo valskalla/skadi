@@ -24,6 +24,6 @@ trait Context
 
 // $COVERAGE-OFF$
 object Context extends Context {
-  val noop: Context = Context
+  val empty: Context = Context
 }
 // $COVERAGE-ON$
