@@ -130,12 +130,14 @@ class DefaultTracerSpec extends SkadiSpec {
           tags: Seq[(String, Tag)],
           startTime: Instant
       ): F[Span] = (TestSpan(
-        name = operationName,
-        tags = tags.toMap,
-        logs = List.empty,
-        exception = None,
+        data = Span.Data(
+          name = operationName,
+          tags = tags.toMap,
+          logs = List.empty,
+          exception = None,
+          stopTime = None
+        ),
         startTime = startTime,
-        stopTime = None,
         parent = parent.map(_.asInstanceOf[TestContext])
       ): Span).pure[F]
     }
@@ -151,12 +153,14 @@ class DefaultTracerSpec extends SkadiSpec {
           tags: Seq[(String, Tag)],
           startTime: Instant
       ): G[Span] = (TestSpan(
-        name = operationName,
-        tags = tags.toMap,
-        logs = List.empty,
-        exception = None,
+        data = Span.Data(
+          name = operationName,
+          tags = tags.toMap,
+          logs = List.empty,
+          exception = None,
+          stopTime = None
+        ),
         startTime = startTime,
-        stopTime = None,
         parent = parent.map(_.asInstanceOf[TestContext])
       ): Span).pure[G]
     }

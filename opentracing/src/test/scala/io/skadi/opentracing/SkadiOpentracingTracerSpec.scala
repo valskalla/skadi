@@ -24,7 +24,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
 
     forAll(Gen.alphaNumStr, Gen.listOf(genTagPair), genTraceLog) { (operationName, tags, log) =>
       val mockTracer = new MockTracer()
-      SkadiOpentracing[F](mockTracer).tracer
+      SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
         .traceWith(operationName, tags: _*)(span => (span.withLog(log), 42).pure[F])
         .run(None)
         .unsafeRunSync()
@@ -50,7 +50,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
     val mockTracer = new MockTracer()
     val e: Throwable = new Exception("err")
-    SkadiOpentracing[F](mockTracer).tracer
+    SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
       .trace("op_name") {
         e.raiseError[F, Int]
       }
@@ -73,7 +73,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     val now = Instant.now()
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
     val mockTracer = new MockTracer()
-    val tracer = SkadiOpentracing[F](mockTracer).tracer
+    val tracer = SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
 
     tracer
       .trace("parent") {
@@ -93,12 +93,11 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     val now = Instant.now()
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
     val mockTracer = new MockTracer()
-    val tracer = SkadiOpentracing[F](mockTracer).tracer
-    val traceCarrier = SkadiOpentracing[F](mockTracer).traceCarrier.throughHttpHeaders
+    val tracer = SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
 
     val Some(spanContext: OpentracingContext) = tracer
       .trace("op_name") {
-        traceCarrier.getCarrier.map(_.get).flatMap(carrier => traceCarrier.fromCarrier(carrier))
+        tracer.getCarrier.map(_.get).flatMap(carrier => tracer.fromCarrier(carrier))
       }
       .run(None)
       .unsafeRunSync()
@@ -113,7 +112,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     val now = Instant.now()
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
     val mockTracer = new MockTracer()
-    val traceCarrier = SkadiOpentracing[F](mockTracer).traceCarrier.throughTextMap
+    val traceCarrier = SkadiOpentracing[F](mockTracer).tracer.throughTextMap
     traceCarrier.fromCarrier(Map.empty).run(None).unsafeRunSync() shouldBe None
   }
 
@@ -121,7 +120,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     val now = Instant.now()
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
     val mockTracer = new MockTracer()
-    val traceCarrier = SkadiOpentracing[F](mockTracer).traceCarrier.throughTextMap
+    val traceCarrier = SkadiOpentracing[F](mockTracer).tracer.throughTextMap
     traceCarrier.getCarrier.run(None).unsafeRunSync() shouldBe None
   }
 }

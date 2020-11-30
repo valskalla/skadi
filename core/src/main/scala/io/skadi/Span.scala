@@ -19,66 +19,110 @@ import java.time.Instant
 
 /**
   * Basic interface for span.
-  * Completely implementation-dependent, and doesn't guarantee referential transparency out of the box.
-  *
-  * See implementations-related documentation for details on ref transparency.
+  * Details are implementation-dependent, but all implementations must be referentially-transparent on updating Span data
   */
 trait Span {
 
   /**
-    * Return span with the new name set
+    * Span information, such as name, tags etc
     */
-  def withName(name: String): Span
+  def data: Span.Data
 
   /**
-    * Return span with new tag added. Overwrites existing tag if it already exists under that name
+    * Span context is an opaque container that is set by implementation. Usually appears at the edge of application
     */
-  def withTag(name: String, tag: Tag): Span
+  def context: Context
 
   /**
-    * Return span with new tags added. Overwrites existing tags if some already exists with same names
+    * Update span information and return back that span
     */
-  def withTags(tags: (String, Tag)*): Span
+  def update(data: Span.Data): Span
 
   /**
-    * Return span with new log recorded
+    * Returns current span name
     */
-  def withLog(traceLog: TraceLog): Span
+  def name: String = data.name
 
   /**
-    * Return span with new logs recorded
+    * Returns current span tags
     */
-  def withLogs(traceLogs: List[TraceLog]): Span
+  def tags: Map[String, Tag] = data.tags
+
+  /**
+    * Returns current span logs
+    */
+  def logs: List[TraceLog] = data.logs
+
+  /**
+    * Returns current span exception if set
+    */
+  def exception: Option[Throwable] = data.exception
+
+  /**
+    * Returns span finished time if set
+    */
+  def stopTime: Option[Instant] = data.stopTime
+
+  /**
+    * Returns span with the new name set
+    */
+  def withName(name: String): Span = update(data.copy(name = name))
+
+  /**
+    * Returns span with new tag added. Overwrites existing tag if it already exists under that name
+    */
+  def withTag(name: String, tag: Tag): Span = update(data.copy(tags = data.tags.updated(name, tag)))
+
+  /**
+    * Returns span with new tags added. Overwrites existing tags if some already exist with the same names
+    */
+  def withTags(tags: (String, Tag)*): Span = update(data.copy(tags = data.tags ++ tags))
+
+  /**
+    * Returns span with new log recorded
+    */
+  def withLog(traceLog: TraceLog): Span = update(data.copy(logs = traceLog :: data.logs))
+
+  /**
+    * Returns span with new logs recorded
+    */
+  def withLogs(traceLogs: List[TraceLog]): Span = update(data.copy(logs = traceLogs ::: data.logs))
 
   /**
     * Mark span with an exception, assuming it's a failed one
     */
-  def withException(e: Throwable): Span
+  def withException(e: Throwable): Span = update(data.copy(exception = Some(e)))
 
   /**
     * Set stop time for the span. Should be done automatically by the tracer
     */
-  def withStopTime(time: Instant): Span
-
-  /**
-    * Retrieve span's context. See [[Context]] for details
-    */
-  def context: Context
+  def withStopTime(time: Instant): Span = update(data.copy(stopTime = Some(time)))
 
 }
 
 object Span {
 
   // $COVERAGE-OFF$
-  val noop: Span = new Span {
-    def withName(name: String): Span = this
-    def withTag(name: String, tag: Tag): Span = this
-    def withTags(tags: (String, Tag)*): Span = this
-    def withLog(traceLog: TraceLog): Span = this
-    def withLogs(traceLogs: List[TraceLog]): Span = this
-    def withException(e: Throwable): Span = this
-    def withStopTime(time: Instant): Span = this
-    def context: Context = Context.noop
+  case class Data(
+      name: String,
+      tags: Map[String, Tag],
+      logs: List[TraceLog],
+      exception: Option[Throwable],
+      stopTime: Option[Instant]
+  )
+
+  object Data {
+    val empty: Data = Data(name = "", tags = Map.empty, logs = List.empty, exception = None, stopTime = None)
+  }
+
+  val empty: Span = new Span { self =>
+    def data: Data = Data.empty
+    def context: Context = Context.empty
+    def update(d: Data): Span = new Span {
+      def data: Data = d
+      def context: Context = self.context
+      def update(data: Data): Span = self.update(data)
+    }
   }
   // $COVERAGE-ON$
 

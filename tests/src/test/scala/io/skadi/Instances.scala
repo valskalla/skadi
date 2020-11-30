@@ -6,7 +6,7 @@ import cats.data.{Kleisli, StateT}
 import cats.effect.IO
 import cats.syntax.all._
 import cats.{Eq, FlatMap}
-import org.scalacheck.{Arbitrary, Cogen, Gen}
+import org.scalacheck.{Arbitrary, Gen}
 
 trait Instances {
 
@@ -19,12 +19,14 @@ trait Instances {
     exception <- Gen.option(Gen.const(new Exception()))
   } yield {
     TestSpan(
-      name = operationName,
-      tags = tags,
-      logs = logs,
-      exception = exception,
+      data = Span.Data(
+        name = operationName,
+        tags = tags,
+        logs = logs,
+        exception = exception,
+        stopTime = stopTime
+      ),
       startTime = startTime,
-      stopTime = stopTime,
       parent = None
     )
   }
@@ -53,11 +55,6 @@ trait Instances {
   }
 
   implicit val eqSpan: Eq[Span] = Eq.fromUniversalEquals
-
-  implicit val cogenSpan: Cogen[Span] = Cogen.cogenString.contramap {
-    case testSpan: TestSpan => testSpan.name
-    case _                  => throw new IllegalStateException("Unexpected span kind")
-  }
 
   implicit val arbitrarySpan: Arbitrary[Span] = Arbitrary(genSpan)
 
