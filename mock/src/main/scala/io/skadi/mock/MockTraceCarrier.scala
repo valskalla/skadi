@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-package io.skadi
+package io.skadi.mock
 
-/**
-  * Opaque value encapsulated inside of `Span`. Completely implementation-dependent and usually exposed to user
-  * on application boundaries to run traces across processes.
-  */
-trait Context
+import io.skadi.{Context, TraceCarrier}
+import cats.syntax.all._
+import io.skadi.mock.MockSpan.MockContext
 
-// $COVERAGE-OFF$
-object Context {
-  private[skadi] case object Empty extends Context
-  private[skadi] val empty: Context = Empty
+trait MockTraceCarrier[F[_]] extends TraceCarrier[F, Map[String, String]] { self: MockTracer[F] =>
+  def fromCarrier(carrier: Map[String, String]): F[Option[Context]] =
+    F.pure(MockSpan.MockContext.fromMap(carrier))
+
+  def getCarrier: F[Option[Map[String, String]]] = self._trace.getSpan.map(_.map { span =>
+    MockContext.toMap(span.context.asInstanceOf[MockContext])
+  })
 }
-// $COVERAGE-ON$

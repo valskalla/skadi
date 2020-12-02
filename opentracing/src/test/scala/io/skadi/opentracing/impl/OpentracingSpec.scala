@@ -76,6 +76,7 @@ class OpentracingSpec extends SkadiSpec {
       tags <- Gen.mapOf(genTagPair)
       exception <- Gen.option(Gen.const(new Exception("err")))
       stopTime <- Gen.option(Gen.choose(0, System.currentTimeMillis()).map(Instant.ofEpochMilli))
+      startTime <- Gen.choose(0, System.currentTimeMillis()).map(Instant.ofEpochMilli)
       logs <- Gen.listOf(genTraceLog)
     } yield {
       OpentracingSpan(
@@ -84,6 +85,7 @@ class OpentracingSpec extends SkadiSpec {
           tags = tags,
           logs = logs,
           exception = exception,
+          startTime = startTime,
           stopTime = stopTime
         ),
         new MockTracer().buildSpan(name).start()

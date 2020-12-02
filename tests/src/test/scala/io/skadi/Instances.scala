@@ -24,9 +24,9 @@ trait Instances {
         tags = tags,
         logs = logs,
         exception = exception,
+        startTime = startTime,
         stopTime = stopTime
       ),
-      startTime = startTime,
       parent = None
     )
   }

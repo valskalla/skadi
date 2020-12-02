@@ -30,6 +30,11 @@ lazy val `skadi-opentracing` = project
     libraryDependencies ++= dependencies.openTracing :: dependencies.opentracingMock :: Nil
   )
 
+lazy val `skadi-mock` = project
+  .in(file("mock"))
+  .dependsOn(`skadi-core`, tests % "test->test")
+  .settings(sharedSettings)
+
 lazy val tests = project
   .in(file("tests"))
   .dependsOn(`skadi-core`, `skadi-laws`)
