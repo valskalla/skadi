@@ -69,6 +69,7 @@ lazy val root = project
     `skadi-laws`,
     `skadi-opentracing`,
     `skadi-monix`,
+    `skadi-mock`,
     tests
   )
 
