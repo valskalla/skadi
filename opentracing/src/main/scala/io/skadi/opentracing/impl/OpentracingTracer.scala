@@ -53,6 +53,7 @@ private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implici
             name = operationName,
             tags = tags.toMap,
             logs = List.empty,
+            startTime = startTime,
             exception = None,
             stopTime = None
           ),

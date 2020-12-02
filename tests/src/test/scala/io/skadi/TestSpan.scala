@@ -1,12 +1,9 @@
 package io.skadi
 
-import java.time.Instant
-
 import io.skadi.TestSpan.TestContext
 
 case class TestSpan(
     data: Span.Data,
-    startTime: Instant,
     parent: Option[TestContext]
 ) extends Span {
 

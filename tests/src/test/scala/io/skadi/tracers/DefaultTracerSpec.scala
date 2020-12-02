@@ -135,9 +135,9 @@ class DefaultTracerSpec extends SkadiSpec {
           tags = tags.toMap,
           logs = List.empty,
           exception = None,
+          startTime = startTime,
           stopTime = None
         ),
-        startTime = startTime,
         parent = parent.map(_.asInstanceOf[TestContext])
       ): Span).pure[F]
     }
@@ -157,10 +157,10 @@ class DefaultTracerSpec extends SkadiSpec {
           name = operationName,
           tags = tags.toMap,
           logs = List.empty,
+          startTime = startTime,
           exception = None,
           stopTime = None
         ),
-        startTime = startTime,
         parent = parent.map(_.asInstanceOf[TestContext])
       ): Span).pure[G]
     }
