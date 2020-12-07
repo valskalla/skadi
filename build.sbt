@@ -116,7 +116,7 @@ lazy val dependencies = new {
 lazy val sharedSettings = Seq(
   scalaVersion := "2.13.2",
   organization := "com.github.valskalla",
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
+  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.2" cross CrossVersion.full),
   crossScalaVersions := scalaVersions,
   classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.ScalaLibrary,
   scalacOptions := scalacOptionsVersion(scalaVersion.value),
@@ -188,7 +188,6 @@ lazy val scalac212Options = Seq(
   "-Xlint:unsound-match", // Pattern match may not be typesafe.
   "-Ywarn-inaccessible", // Warn about inaccessible types in method signatures.
   "-Ywarn-infer-any", // Warn when a type argument is inferred to be `Any`.
-  "-Ywarn-nullary-override", // Warn when non-nullary `def f()' overrides nullary `def f'.
   "-Ywarn-dead-code", // Warn when dead code is identified.
   "-Ywarn-extra-implicit", // Warn when more than one implicit parameter section is defined.
   "-Ywarn-nullary-unit", // Warn when nullary methods return Unit.
