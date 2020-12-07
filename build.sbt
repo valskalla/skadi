@@ -22,6 +22,16 @@ lazy val `skadi-monix` = project
     libraryDependencies ++= dependencies.monix :: Nil
   )
 
+lazy val `skadi-zio` = project
+  .in(file("zio"))
+  .dependsOn(`skadi-core`, `skadi-laws`, tests % "test->test")
+  .settings(
+    sharedSettings
+  )
+  .settings(
+    libraryDependencies ++= dependencies.zio
+  )
+
 lazy val `skadi-opentracing` = project
   .in(file("opentracing"))
   .dependsOn(`skadi-core`, tests % "test->test")
@@ -34,6 +44,10 @@ lazy val `skadi-mock` = project
   .in(file("mock"))
   .dependsOn(`skadi-core`, tests % "test->test")
   .settings(sharedSettings)
+
+lazy val examples = project
+  .in(file("examples"))
+  .dependsOn(`skadi-core`, `skadi-opentracing`, `skadi-monix`, `skadi-zio`)
 
 lazy val tests = project
   .in(file("tests"))
@@ -69,6 +83,7 @@ lazy val root = project
     `skadi-laws`,
     `skadi-opentracing`,
     `skadi-monix`,
+    `skadi-zio`,
     `skadi-mock`,
     tests
   )
@@ -81,6 +96,11 @@ lazy val dependencies = new {
   lazy val catsEffect = "org.typelevel" %% "cats-effect" % "2.3.0"
 
   lazy val monix = "io.monix" %% "monix" % "3.3.0"
+
+  lazy val zio = List(
+    "dev.zio" %% "zio" % "1.0.3",
+    "dev.zio" %% "zio-interop-cats" % "2.2.0.1"
+  )
 
   lazy val openTracing = "io.opentracing" % "opentracing-api" % "0.33.0"
 
@@ -97,7 +117,7 @@ lazy val sharedSettings = Seq(
   scalaVersion := "2.13.2",
   organization := "com.github.valskalla",
   addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
-  //crossScalaVersions := scalaVersions,
+  crossScalaVersions := scalaVersions,
   classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.ScalaLibrary,
   scalacOptions := scalacOptionsVersion(scalaVersion.value),
   scalacOptions in (Compile, console) ~= (_.filterNot(

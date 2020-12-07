@@ -24,26 +24,29 @@ import cats.syntax.all._
 import io.skadi._
 
 abstract class DefaultTracer[F[_]](implicit clock: TracerClock[F], F: Sync[F], trace: Trace[F]) extends Tracer[F] {
+
   def trace[A](operationName: String, tags: (String, Tag)*)(fa: F[A]): F[A] =
-    traceWith(operationName, None, tags: _*)(span => fa.tupleLeft(span))
+    trace(operationName, None, tags: _*)(fa)
 
   def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A]): F[A] =
     trace(operationName, Some(parent.context), tags: _*)(fa)
 
   def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A]): F[A] =
-    traceWith(operationName, parent, tags: _*)(span => fa.tupleLeft(span))
+    traceWith(operationName, parent, tags: _*)(fa)((span, _) => span)
 
-  def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: Span => F[(Span, A)]): F[A] =
-    traceWith(operationName, None, tags: _*)(fa)
+  def traceWith[A](operationName: String, tags: (String, Tag)*)(
+      fa: F[A]
+  )(after: (Span, A) => Span): F[A] =
+    traceWith(operationName, None, tags: _*)(fa)(after)
 
   def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
-      fa: Span => F[(Span, A)]
-  ): F[A] =
-    traceWith(operationName, Some(parent.context), tags: _*)(fa)
+      fa: F[A]
+  )(after: (Span, A) => Span): F[A] =
+    traceWith(operationName, Some(parent.context), tags: _*)(fa)(after)
 
   def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
-      fa: Span => F[(Span, A)]
-  ): F[A] =
+      fa: F[A]
+  )(after: (Span, A) => Span): F[A] =
     Ref.of[F, Option[Span]](None).flatMap { ref =>
       Resource
         .makeCase(
@@ -64,13 +67,17 @@ abstract class DefaultTracer[F[_]](implicit clock: TracerClock[F], F: Sync[F], t
             .flatMap(onRelease(_, exitCase))
         }
         .use(span =>
-          run(fa(span))(span).flatMap {
-            case (afterSpan, a) => ref.set(Some(afterSpan)).as(a)
+          run(fa)(span).flatMap {
+            case (afterSpan, Right(a)) => ref.set(Some(after(afterSpan, a))).as(a)
+            case (_, Left(t))          => F.raiseError(t)
           }
         )
     }
 
-  protected def run[A](fa: F[A])(span: Span): F[A] = trace.withSpan(span)(fa)
+  //by suppressing error within `fa` we guarantee that any changes made to span during evaluation would make it to the report,
+  //underlying monad wouldn't matter (fail-fast or not)
+  protected def run[A](fa: F[A])(span: Span): F[(Span, Either[Throwable, A])] =
+    trace.withSpan(span)(fa.attempt.flatMap(a => trace.getSpan.map(_.getOrElse(span)).tupleRight(a)))
 
   protected def onRelease(span: Span, exitCase: ExitCase[Throwable]): F[Unit] = exitCase match {
     case ExitCase.Error(e) =>

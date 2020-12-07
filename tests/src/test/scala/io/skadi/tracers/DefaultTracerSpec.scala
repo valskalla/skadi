@@ -2,7 +2,7 @@ package io.skadi.tracers
 
 import java.time.Instant
 
-import cats.data.{Kleisli, WriterT}
+import cats.data.{Kleisli, StateT, WriterT}
 import cats.effect.{IO, Sync}
 import cats.effect.concurrent.Ref
 import cats.syntax.all._
@@ -49,8 +49,8 @@ class DefaultTracerSpec extends SkadiSpec {
     forAll(Gen.alphaNumStr, Gen.alphaNumStr, Gen.mapOf(genTagPair), Gen.mapOf(genTagPair), genTraceLog) {
       (name: String, newName: String, tags: Map[String, Tag], newTags: Map[String, Tag], traceLog: TraceLog) =>
         val traced = tracer
-          .traceWith(name, tags.toList: _*) { span =>
-            (span.withName(newName).withTags(newTags.toList: _*).withLog(traceLog), 42).pure[F]
+          .traceWith(name, tags.toList: _*)(42.pure[F]) { (span, _) =>
+            span.withName(newName).withTags(newTags.toList: _*).withLog(traceLog)
           }
           .run(None)
           .written
@@ -117,6 +117,31 @@ class DefaultTracerSpec extends SkadiSpec {
     val Some(finishedSpan: TestSpan) = ref.get.run(None).unsafeRunSync()
 
     finishedSpan.exception shouldBe Some(e)
+  }
+
+  test("DefaultTracer picks up span changes made in evaluation block when F : StatefulTrace") {
+    type F[A] = StateT[IO, Option[Span], A]
+    implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.ofEpochMilli(1))
+    val ref = Ref.unsafe[F, Option[Span]](None)
+    val tracer = mkTracer(ref)
+    forAll(Gen.alphaNumStr, Gen.alphaNumStr, Gen.mapOf(genTagPair), Gen.mapOf(genTagPair), genTraceLog) {
+      (name: String, newName: String, tags: Map[String, Tag], newTags: Map[String, Tag], traceLog: TraceLog) =>
+        val traced = (for {
+          _ <-
+            tracer
+              .trace(name, tags.toList: _*) {
+                tracer.setOperationName(newName) >> tracer.setTags(newTags.toList: _*) >> tracer.addLog(traceLog)
+              }
+          traced <- ref.get
+        } yield {
+          traced
+        }).runA(None).unsafeRunSync()
+
+        val Some(finishedSpan: TestSpan) = traced
+        finishedSpan.name shouldBe newName
+        finishedSpan.tags shouldBe (tags ++ newTags)
+        finishedSpan.logs shouldBe traceLog :: Nil
+    }
   }
 
   private def mkTracer(implicit tracerClock: TracerClock[F]): Tracer[F] =

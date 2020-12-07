@@ -2,7 +2,7 @@ package io.skadi.monix
 
 import cats.Eq
 import io.skadi.laws.StatefulTraceLaws
-import io.skadi.{SkadiSpec, StatefulTrace}
+import io.skadi.{SkadiSpec, Span, StatefulTrace}
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.scalacheck.Arbitrary
@@ -25,7 +25,7 @@ class TraceTaskSpec extends SkadiSpec {
     arbA.arbitrary.map(a => Task.eval(a))
   )
 
-  initTaskStatefulTrace
+  initTaskStatefulTrace[Option[Span]](None)
     .map { implicit st: StatefulTrace[Task] => checkAll("Task", StatefulTraceLaws[Task].all) }
     .runSyncUnsafe()
 }

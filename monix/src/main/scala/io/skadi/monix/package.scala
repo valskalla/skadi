@@ -20,24 +20,28 @@ package object monix {
     *
     * Hint: to drastically improve Quality of Life when dealing with implicits inside of for-yields, take a look at
     * this useful Scala compiler plugin: `https://github.com/oleg-py/better-monadic-for`
+    *
+    * @param init Initial value of environment (state) that keeps span
     */
-  def initTaskStatefulTrace: Task[StatefulTrace[Task]] =
-    TaskLocal(Option.empty[Span]).map(taskStatefulTrace)
+  def initTaskStatefulTrace[Env: HasSpan](init: => Env): Task[StatefulTrace[Task]] =
+    TaskLocal.lazyDefault(Coeval(init)).map(taskStatefulTrace[Env])
 
-  private def taskStatefulTrace(local: TaskLocal[Option[Span]]): StatefulTrace[Task] =
+  private def taskStatefulTrace[Env](local: TaskLocal[Env])(implicit hasSpan: HasSpan[Env]): StatefulTrace[Task] =
     new StatefulTrace[Task] {
       def setSpan(span: Span): Task[Unit] =
-        local.write(Some(span))
+        local.read.flatMap(env => local.write(hasSpan.set(Some(span), env)))
 
       def getSpan: Task[Option[Span]] =
-        local.read
+        local.read.map(hasSpan.get)
 
       def withSpan[A](span: Span)(fa: Task[A]): Task[A] =
-        local.bind(Some(span))(fa)
+        local.read.flatMap(env => local.bind(hasSpan.set(Some(span), env))(fa))
 
-      def modifySpan(fn: Span => Span): Task[Unit] = local.read.flatMap {
-        case Some(span) => setSpan(fn(span))
-        case _          => Task.unit
+      def modifySpan(fn: Span => Span): Task[Unit] = local.read.flatMap { env =>
+        hasSpan.get(env) match {
+          case Some(span) => setSpan(fn(span))
+          case _          => Task.unit
+        }
       }
     }
 

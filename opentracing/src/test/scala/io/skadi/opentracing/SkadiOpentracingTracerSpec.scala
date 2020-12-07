@@ -25,7 +25,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     forAll(Gen.alphaNumStr, Gen.listOf(genTagPair), genTraceLog) { (operationName, tags, log) =>
       val mockTracer = new MockTracer()
       SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
-        .traceWith(operationName, tags: _*)(span => (span.withLog(log), 42).pure[F])
+        .traceWith(operationName, tags: _*)(42.pure[F])((span, _) => span.withLog(log))
         .run(None)
         .unsafeRunSync()
 

@@ -17,8 +17,8 @@
 package io.skadi
 
 /**
- * Type class to describe how to extract & set span for some environment (i.e. `Kleisli` argument or `State`'s state)
- */
+  * Type class to describe how to extract & set span for some environment (i.e. `Kleisli` argument or `State`'s state)
+  */
 trait HasSpan[Env] {
 
   def get(env: Env): Option[Span]

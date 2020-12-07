@@ -17,7 +17,7 @@
 package io.skadi
 
 import cats.syntax.all._
-import cats.{Functor, Monad, ~>}
+import cats.{Monad, ~>}
 
 /**
   * Tracer acts as an abstraction layer over tracing.
@@ -71,9 +71,10 @@ trait Tracer[F[_]] {
     *
     * @param operationName name of span
     * @param tags tags to add to span
-    * @param fa function that accepts span and returns potentially modified one together with evaluation results
+    * @param fa operation to trace
+    * @param after function to modify the span after evaluation is complete but before the span is reported
     */
-  def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: Span => F[(Span, A)]): F[A]
+  def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: F[A])(after: (Span, A) => Span): F[A]
 
   /**
     * Same as basic `traceWith` but with explicit parent set
@@ -81,9 +82,10 @@ trait Tracer[F[_]] {
     * @param operationName name of span
     * @param parent parent context to use
     * @param tags tags to add to span
-    * @param fa function that accepts span and returns potentially modified one together with evaluation results
+    * @param fa operation to trace
+    * @param after function to modify the span after evaluation is complete but before the span is reported
     */
-  def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: Span => F[(Span, A)]): F[A]
+  def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A])(after: (Span, A) => Span): F[A]
 
   /**
     * Same as basic `traceWith` but with explicit optional parent's context. Usually used on the edge of tracing initialization in combination
@@ -92,10 +94,11 @@ trait Tracer[F[_]] {
     * @param operationName name of span
     * @param parent parent context to use
     * @param tags tags to add to span
-    * @param fa function that accepts span and returns potentially modified one together with evaluation results
+    * @param fa operation to trace
+    * @param after function to modify the span after evaluation is complete but before the span is reported
     */
-  def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
-      fa: Span => F[(Span, A)]
+  def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A])(
+      after: (Span, A) => Span
   ): F[A]
 
 }
@@ -103,18 +106,20 @@ trait Tracer[F[_]] {
 object Tracer {
 
   // $COVERAGE-OFF$
-  def noop[F[_]](implicit F: Functor[F]): Tracer[F] = new Tracer[F] {
+  def noop[F[_]]: Tracer[F] = new Tracer[F] {
     def trace[A](operationName: String, tags: (String, Tag)*)(fa: F[A]): F[A] = fa
     def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A]): F[A] = fa
     def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A]): F[A] = fa
-    def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: Span => F[(Span, A)]): F[A] =
-      fa(Span.empty).map(_._2)
-    def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: Span => F[(Span, A)]): F[A] =
-      fa(Span.empty).map(_._2)
+    def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: F[A])(after: (Span, A) => Span): F[A] =
+      fa
+    def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
+        fa: F[A]
+    )(after: (Span, A) => Span): F[A] =
+      fa
     def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
-        fa: Span => F[(Span, A)]
-    ): F[A] =
-      fa(Span.empty).map(_._2)
+        fa: F[A]
+    )(after: (Span, A) => Span): F[A] =
+      fa
   }
   // $COVERAGE-ON$
 
@@ -134,18 +139,18 @@ object Tracer {
       def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: G[A]): G[A] =
         to(tracer.trace(operationName, parent, tags: _*)(from(fa)))
 
-      def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: Span => G[(Span, A)]): G[A] =
-        to(tracer.traceWith(operationName, tags: _*)(span => from(fa(span))))
+      def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: G[A])(after: (Span, A) => Span): G[A] =
+        to(tracer.traceWith(operationName, tags: _*)(from(fa))(after))
 
       def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
-          fa: Span => G[(Span, A)]
-      ): G[A] =
-        to(tracer.traceWith(operationName, parent, tags: _*)(span => from(fa(span))))
+          fa: G[A]
+      )(after: (Span, A) => Span): G[A] =
+        to(tracer.traceWith(operationName, parent, tags: _*)(from(fa))(after))
 
       def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
-          fa: Span => G[(Span, A)]
-      ): G[A] =
-        to(tracer.traceWith(operationName, parent, tags: _*)(span => from(fa(span))))
+          fa: G[A]
+      )(after: (Span, A) => Span): G[A] =
+        to(tracer.traceWith(operationName, parent, tags: _*)(from(fa))(after))
 
     }
     // $COVERAGE-ON$

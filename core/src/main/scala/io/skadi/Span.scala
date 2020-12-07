@@ -59,8 +59,8 @@ trait Span {
   def exception: Option[Throwable] = data.exception
 
   /**
-   * Returns span start time
-   */
+    * Returns span start time
+    */
   def startTime: Instant = data.startTime
 
   /**
@@ -115,21 +115,5 @@ object Span {
       exception: Option[Throwable],
       stopTime: Option[Instant]
   )
-
-  // $COVERAGE-OFF$
-  private[skadi] object Data {
-    val empty: Data = Data(name = "", tags = Map.empty, logs = List.empty, exception = None, startTime = Instant.EPOCH, stopTime = None)
-  }
-
-  private[skadi] val empty: Span = new Span { self =>
-    def data: Data = Data.empty
-    def context: Context = Context.empty
-    def update(d: Data): Span = new Span {
-      def data: Data = d
-      def context: Context = self.context
-      def update(data: Data): Span = self.update(data)
-    }
-  }
-  // $COVERAGE-ON$
 
 }

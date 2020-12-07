@@ -45,12 +45,6 @@ class OpentracingSpec extends SkadiSpec {
     }
   }
 
-  test("withName sets new name") {
-    forAll(genOpentracingSpan, Gen.alphaNumStr) { (span, newName) =>
-      span.withName(newName).asInstanceOf[OpentracingSpan].name shouldBe newName
-    }
-  }
-
   test("withStopTime records stop time") {
     forAll(genOpentracingSpan, Gen.choose(0, System.currentTimeMillis())) { (span, stopTime) =>
       val instant = Instant.ofEpochMilli(stopTime)
