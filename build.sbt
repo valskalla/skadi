@@ -70,7 +70,7 @@ lazy val docs = (project in file("skadi-docs"))
     ),
     mdocOut := file(".")
   )
-  .dependsOn(`skadi-core`, `skadi-laws`, `skadi-monix`, `skadi-opentracing`)
+  .dependsOn(`skadi-core`, `skadi-laws`, `skadi-monix`, `skadi-zio`, `skadi-opentracing`, `skadi-mock`)
   .enablePlugins(MdocPlugin)
 
 lazy val root = project
