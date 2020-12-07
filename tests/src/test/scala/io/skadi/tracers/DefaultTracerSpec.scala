@@ -32,7 +32,6 @@ class DefaultTracerSpec extends SkadiSpec {
     implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.ofEpochMilli(1L))
     val tracer = mkTracer
     forAll(Gen.alphaNumStr, Gen.mapOf(genTagPair)) { (name: String, tags: Map[String, Tag]) =>
-      implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.ofEpochMilli(1))
       val traced =
         tracer.trace(name, tags.toList: _*)("foo".pure[F]).run(None).written.unsafeRunSync()
 
