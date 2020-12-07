@@ -31,7 +31,7 @@ object MockSpan {
   object MockContext {
 
     def fromMap(map: Map[String, String]): Option[MockContext] =
-      map.get("context").flatMap(_.toLongOption).map(MockContext(_, None))
+      map.get("context").map(_.toLong).map(MockContext(_, None))
 
     def toMap(mockContext: MockContext): Map[String, String] =
       Map("context" -> mockContext.id.toString)
