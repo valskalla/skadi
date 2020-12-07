@@ -12,8 +12,6 @@ import io.skadi.opentracing.impl.OpentracingContext
 import io.skadi.{SkadiSpec, Span, Tag, TracerClock}
 import org.scalacheck.Gen
 
-import scala.jdk.CollectionConverters._
-
 class SkadiOpentracingTracerSpec extends SkadiSpec {
 
   type F[A] = Kleisli[IO, Option[Span], A]
@@ -32,12 +30,12 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
       val finishedSpan = mockTracer.finishedSpans().get(0)
 
       finishedSpan.operationName() shouldBe operationName
-      finishedSpan.tags().asScala should contain allElementsOf tags.map {
+      jmapToScala(finishedSpan.tags()) should contain allElementsOf tags.map {
         case (key, Tag.IntTag(v))     => key -> v
         case (key, Tag.StringTag(v))  => key -> v
         case (key, Tag.BooleanTag(v)) => key -> v
       }.toMap
-      val logEntry = finishedSpan.logEntries().asScala.head
+      val logEntry = jlistToScala(finishedSpan.logEntries()).head
       logEntry.timestampMicros() shouldBe {
         TimeUnit.SECONDS.toMicros(log.timestamp.getEpochSecond) + TimeUnit.NANOSECONDS.toMicros(log.timestamp.getNano)
       }
@@ -84,7 +82,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
       .run(None)
       .unsafeRunSync()
 
-    val child :: parent :: Nil = mockTracer.finishedSpans().asScala.toList
+    val child :: parent :: Nil = jlistToScala(mockTracer.finishedSpans())
 
     child.parentId() shouldBe parent.context().spanId()
   }

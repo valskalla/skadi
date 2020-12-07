@@ -26,4 +26,7 @@ package object opentracing {
   private[skadi] def smapToJava[K, V](map: Map[K, V]): java.util.Map[K, V] =
     map.asJava
 
+  private[skadi] def jlistToScala[V](list: java.util.List[V]): List[V] =
+    list.asScala.toList
+
 }

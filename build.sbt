@@ -1,4 +1,4 @@
-lazy val scalaVersions = List("2.13.2", "2.12.11")
+lazy val scalaVersions = List("2.13.4", "2.12.12")
 
 lazy val `skadi-core` = project
   .in(file("core"))
