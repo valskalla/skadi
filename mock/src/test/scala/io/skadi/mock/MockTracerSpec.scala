@@ -32,7 +32,7 @@ class MockTracerSpec extends SkadiSpec {
 
   test("MockTracer should keep record of recorded spans") {
     forAll(Gen.alphaNumStr, Gen.mapOf(genTagPair)) { (name, tags) =>
-      val tracer = MockTracer[F]
+      val tracer = MockTracer[F].create
 
       val span :: Nil = (for {
         _ <- tracer.trace(name, tags.toList: _*)(42.pure[F])
@@ -50,7 +50,7 @@ class MockTracerSpec extends SkadiSpec {
 
   test("MockTracer should increment span id on each trace") {
     forAll(Gen.alphaNumStr, Gen.mapOf(genTagPair)) { (name, tags) =>
-      val tracer = MockTracer[F]
+      val tracer = MockTracer[F].create
 
       val s1 :: s2 :: Nil = (for {
         _ <- tracer.trace(name, tags.toList: _*)(tracer.trace(name)(42.pure[F]))
@@ -66,7 +66,7 @@ class MockTracerSpec extends SkadiSpec {
 
   test("MockTracer should track parent id") {
     forAll(Gen.alphaNumStr, Gen.mapOf(genTagPair)) { (name, tags) =>
-      val tracer = MockTracer[F]
+      val tracer = MockTracer[F].create
 
       val s1 :: s2 :: Nil = (for {
         _ <- tracer.trace(name, tags.toList: _*)(tracer.trace(name)(42.pure[F]))
@@ -81,7 +81,7 @@ class MockTracerSpec extends SkadiSpec {
   }
 
   test("MockTraceCarrier should do round trip") {
-    val tracer = MockTracer[F]
+    val tracer = MockTracer[F].create
 
     val Some(context: MockContext) = tracer
       .trace("test") {
