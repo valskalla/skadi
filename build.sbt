@@ -47,6 +47,14 @@ lazy val `skadi-mock` = project
 
 lazy val examples = project
   .in(file("examples"))
+  .settings(sharedSettings)
+  .settings(noPublish)
+  .settings(
+    libraryDependencies ++= dependencies.logback :: dependencies.jaeger :: dependencies.http4s
+  )
+  .settings(
+    coverageExcludedPackages := "io.skadi.examples.*"
+  )
   .dependsOn(`skadi-core`, `skadi-opentracing`, `skadi-monix`, `skadi-zio`)
 
 lazy val tests = project
@@ -85,7 +93,8 @@ lazy val root = project
     `skadi-monix`,
     `skadi-zio`,
     `skadi-mock`,
-    tests
+    tests,
+    examples
   )
 
 lazy val dependencies = new {
@@ -111,6 +120,17 @@ lazy val dependencies = new {
   lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.1.3" % Test
 
   lazy val opentracingMock = "io.opentracing" % "opentracing-mock" % "0.33.0" % Test
+
+  lazy val logback = "ch.qos.logback" % "logback-classic" % "1.2.3"
+
+  lazy val http4s = List(
+    "org.http4s" %% "http4s-blaze-server",
+    "org.http4s" %% "http4s-blaze-client",
+    "org.http4s" %% "http4s-circe",
+    "org.http4s" %% "http4s-dsl"
+  ).map(_ % "0.21.13")
+
+  lazy val jaeger = "io.jaegertracing" % "jaeger-client" % "1.5.0"
 }
 
 lazy val sharedSettings = Seq(
