@@ -25,25 +25,6 @@ import io.skadi._
 
 abstract class DefaultTracer[F[_]](implicit clock: TracerClock[F], F: Sync[F], trace: Trace[F]) extends Tracer[F] {
 
-  def trace[A](operationName: String, tags: (String, Tag)*)(fa: F[A]): F[A] =
-    trace(operationName, None, tags: _*)(fa)
-
-  def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A]): F[A] =
-    trace(operationName, Some(parent.context), tags: _*)(fa)
-
-  def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A]): F[A] =
-    traceWith(operationName, parent, tags: _*)(fa)((span, _) => span)
-
-  def traceWith[A](operationName: String, tags: (String, Tag)*)(
-      fa: F[A]
-  )(after: (Span, A) => Span): F[A] =
-    traceWith(operationName, None, tags: _*)(fa)(after)
-
-  def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
-      fa: F[A]
-  )(after: (Span, A) => Span): F[A] =
-    traceWith(operationName, Some(parent.context), tags: _*)(fa)(after)
-
   def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
       fa: F[A]
   )(after: (Span, A) => Span): F[A] =
@@ -74,8 +55,8 @@ abstract class DefaultTracer[F[_]](implicit clock: TracerClock[F], F: Sync[F], t
         )
     }
 
-  //by suppressing error within `fa` we guarantee that any changes made to span during evaluation would make it to the report,
-  //underlying monad wouldn't matter (fail-fast or not)
+  //by suppressing error within `fa` we give a soft guarantee that any changes applied to
+  //the state during evaluation would make it to the report
   protected def run[A](fa: F[A])(span: Span): F[(Span, Either[Throwable, A])] =
     trace.withSpan(span)(fa.attempt.flatMap(a => trace.getSpan.map(_.getOrElse(span)).tupleRight(a)))
 

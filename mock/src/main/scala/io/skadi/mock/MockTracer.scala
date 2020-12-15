@@ -21,14 +21,15 @@ import java.time.Instant
 import cats.effect.Sync
 import cats.effect.concurrent.Ref
 import cats.syntax.all._
-import io.skadi.{Context, Span, Tag, Trace, TraceCarrier, TracerClock}
+import io.skadi.{AsCarrier, Context, Span, Tag, Trace, TraceCarrier, TracerClock}
 import io.skadi.tracers.DefaultTracer
 
-class MockTracer[F[_]: TracerClock](spansRef: Ref[F, List[MockSpan]], counter: Ref[F, Long])(
+class MockTracer[F[_]: TracerClock, Carrier](spansRef: Ref[F, List[MockSpan]], counter: Ref[F, Long])(
     implicit protected val F: Sync[F],
-    protected val _trace: Trace[F]
+    protected val _trace: Trace[F],
+    protected val _carrier: AsCarrier[Carrier, Map[String, String]]
 ) extends DefaultTracer[F]
-    with MockTraceCarrier[F] {
+    with MockTraceCarrier[F, Carrier] {
 
   def spans: F[List[MockSpan]] = spansRef.get
 
@@ -57,7 +58,13 @@ class MockTracer[F[_]: TracerClock](spansRef: Ref[F, List[MockSpan]], counter: R
 
 object MockTracer {
 
-  def apply[F[_]: TracerClock: Sync: Trace]: MockTracer[F] with TraceCarrier[F, Map[String, String]] =
-    new MockTracer[F](Ref.unsafe[F, List[MockSpan]](List.empty), Ref.unsafe[F, Long](0L))
+  class MockTracerBuilder[F[_]: TracerClock: Sync: Trace] {
+    def create[Carrier](
+        implicit asCarrier: AsCarrier[Carrier, Map[String, String]]
+    ): MockTracer[F, Carrier] with TraceCarrier[F, Carrier] =
+      new MockTracer[F, Carrier](Ref.unsafe[F, List[MockSpan]](List.empty), Ref.unsafe[F, Long](0L))
+  }
+
+  def apply[F[_]: TracerClock: Sync: Trace]: MockTracerBuilder[F] = new MockTracerBuilder[F]
 
 }

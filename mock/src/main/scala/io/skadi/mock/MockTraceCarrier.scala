@@ -20,11 +20,11 @@ import io.skadi.{Context, TraceCarrier}
 import cats.syntax.all._
 import io.skadi.mock.MockSpan.MockContext
 
-trait MockTraceCarrier[F[_]] extends TraceCarrier[F, Map[String, String]] { self: MockTracer[F] =>
-  def fromCarrier(carrier: Map[String, String]): F[Option[Context]] =
-    F.pure(MockSpan.MockContext.fromMap(carrier))
+trait MockTraceCarrier[F[_], Carrier] extends TraceCarrier[F, Carrier] { self: MockTracer[F, Carrier] =>
+  def fromCarrier(carrier: Carrier): F[Option[Context]] =
+    F.pure(MockSpan.MockContext.fromMap(_carrier.from(carrier)))
 
-  def getCarrier: F[Option[Map[String, String]]] = self._trace.getSpan.map(_.map { span =>
-    MockContext.toMap(span.context.asInstanceOf[MockContext])
+  def getCarrier: F[Option[Carrier]] = self._trace.getSpan.map(_.map { span =>
+    _carrier.to(MockContext.toMap(span.context.asInstanceOf[MockContext]))
   })
 }
