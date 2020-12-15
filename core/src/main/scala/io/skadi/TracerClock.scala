@@ -19,7 +19,9 @@ package io.skadi
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+import cats.data.WriterT
 import cats.effect.{Clock, Sync}
+import cats.kernel.Monoid
 import cats.{Applicative, Functor}
 
 /**
@@ -32,7 +34,7 @@ trait TracerClock[F[_]] {
 
 }
 
-object TracerClock {
+object TracerClock extends TracerClockInstances {
 
   /**
     * Use cats-effect clocks and deal with milliseconds precision
@@ -52,6 +54,16 @@ object TracerClock {
 
   def const[F[_]](instant: Instant)(implicit F: Applicative[F]): TracerClock[F] = new TracerClock[F] {
     def realTime: F[Instant] = F.pure(instant)
+  }
+
+}
+
+private[skadi] trait TracerClockInstances {
+
+  implicit def writerTtracerClock[F[_]: Applicative, L: Monoid](
+      implicit clock: TracerClock[F]
+  ): TracerClock[WriterT[F, L, *]] = new TracerClock[WriterT[F, L, *]] {
+    def realTime: WriterT[F, L, Instant] = WriterT.liftF(clock.realTime)
   }
 
 }

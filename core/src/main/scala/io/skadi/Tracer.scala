@@ -18,6 +18,7 @@ package io.skadi
 
 import cats.syntax.all._
 import cats.{Monad, ~>}
+import io.skadi.tracers.{ConditionalTracer, ConstCarrierTracer, ConstTagsTracer}
 
 /**
   * Tracer acts as an abstraction layer over tracing.
@@ -30,7 +31,7 @@ import cats.{Monad, ~>}
   *  {{{
   *    tracer.trace("fetch_user", "user_id" -> Tag.int(42)) {
   *      readFromDB(userId=42)
-  *    } //the moment `readFromDB` is evaluated, span "fetch_user" is finished
+  *    } //tracer reports span "fetch_user" the moment `readFromDB` is evaluated
   *  }}}
   */
 trait Tracer[F[_]] {
@@ -44,7 +45,8 @@ trait Tracer[F[_]] {
     * @param tags tags to add to span
     * @param fa operation to trace
     */
-  def trace[A](operationName: String, tags: (String, Tag)*)(fa: F[A]): F[A]
+  def trace[A](operationName: String, tags: (String, Tag)*)(fa: F[A]): F[A] =
+    trace(operationName, None, tags: _*)(fa)
 
   /**
     * Same as basic `trace` but with explicit parent set
@@ -53,7 +55,8 @@ trait Tracer[F[_]] {
     * @param tags tags to add to span
     * @param fa operation to trace
     */
-  def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A]): F[A]
+  def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A]): F[A] =
+    trace(operationName, Some(parent.context), tags: _*)(fa)
 
   /**
     * Same as basic `trace` but with explicit optional parent's context. Usually used on the edge of tracing initialization in combination
@@ -63,7 +66,8 @@ trait Tracer[F[_]] {
     * @param tags tags to add to span
     * @param fa operation to trace
     */
-  def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A]): F[A]
+  def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A]): F[A] =
+    traceWith(operationName, parent, tags: _*)(fa)((span, _) => span)
 
   /**
     * Traces evaluation of `fa`. Implementation might use parent span extracted from context of `F[_]` if it exists.
@@ -74,7 +78,10 @@ trait Tracer[F[_]] {
     * @param fa operation to trace
     * @param after function to modify the span after evaluation is complete but before the span is reported
     */
-  def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: F[A])(after: (Span, A) => Span): F[A]
+  def traceWith[A](operationName: String, tags: (String, Tag)*)(
+      fa: F[A]
+  )(after: (Span, A) => Span): F[A] =
+    traceWith(operationName, None, tags: _*)(fa)(after)
 
   /**
     * Same as basic `traceWith` but with explicit parent set
@@ -85,7 +92,10 @@ trait Tracer[F[_]] {
     * @param fa operation to trace
     * @param after function to modify the span after evaluation is complete but before the span is reported
     */
-  def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A])(after: (Span, A) => Span): F[A]
+  def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
+      fa: F[A]
+  )(after: (Span, A) => Span): F[A] =
+    traceWith(operationName, Some(parent.context), tags: _*)(fa)(after)
 
   /**
     * Same as basic `traceWith` but with explicit optional parent's context. Usually used on the edge of tracing initialization in combination
@@ -107,15 +117,6 @@ object Tracer {
 
   // $COVERAGE-OFF$
   def noop[F[_]]: Tracer[F] = new Tracer[F] {
-    def trace[A](operationName: String, tags: (String, Tag)*)(fa: F[A]): F[A] = fa
-    def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: F[A]): F[A] = fa
-    def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: F[A]): F[A] = fa
-    def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: F[A])(after: (Span, A) => Span): F[A] =
-      fa
-    def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
-        fa: F[A]
-    )(after: (Span, A) => Span): F[A] =
-      fa
     def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
         fa: F[A]
     )(after: (Span, A) => Span): F[A] =
@@ -130,23 +131,6 @@ object Tracer {
       */
     // $COVERAGE-OFF$
     def isoK[G[_]](to: F ~> G, from: G ~> F): Tracer[G] = new Tracer[G] {
-      def trace[A](operationName: String, tags: (String, Tag)*)(fa: G[A]): G[A] =
-        to(tracer.trace(operationName, tags: _*)(from(fa)))
-
-      def trace[A](operationName: String, parent: Span, tags: (String, Tag)*)(fa: G[A]): G[A] =
-        to(tracer.trace(operationName, parent, tags: _*)(from(fa)))
-
-      def trace[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(fa: G[A]): G[A] =
-        to(tracer.trace(operationName, parent, tags: _*)(from(fa)))
-
-      def traceWith[A](operationName: String, tags: (String, Tag)*)(fa: G[A])(after: (Span, A) => Span): G[A] =
-        to(tracer.traceWith(operationName, tags: _*)(from(fa))(after))
-
-      def traceWith[A](operationName: String, parent: Span, tags: (String, Tag)*)(
-          fa: G[A]
-      )(after: (Span, A) => Span): G[A] =
-        to(tracer.traceWith(operationName, parent, tags: _*)(from(fa))(after))
-
       def traceWith[A](operationName: String, parent: Option[Context], tags: (String, Tag)*)(
           fa: G[A]
       )(after: (Span, A) => Span): G[A] =
@@ -200,6 +184,28 @@ object Tracer {
     def setException(e: Throwable)(implicit stateful: StatefulTrace[F]): F[Unit] = stateful.modifySpan(
       _.withException(e)
     )
+
+    /**
+      * Turns the tracer into conditional one that enables the tracing only when condition `F[Boolean]` evaluates to `true`.
+      *
+      * Could be useful when tracing should be skipped due to reasons.
+      */
+    def conditional(condition: => F[Boolean])(implicit F: Monad[F]): Tracer[F] =
+      new ConditionalTracer[F](condition)(tracer)
+
+    /**
+      * Tracer that always adds a predefined set of tags to every span. Actual caller might overwrite tags if they match
+      * by key
+      */
+    def withConstTags(tags: Map[String, Tag]): Tracer[F] =
+      new ConstTagsTracer[F](tags)(tracer)
+
+    /**
+      * Creates a tracer that prefers parent context from the carrier if it exists, and use the parent from arguments only
+      * as a fallback
+      */
+    def continueFrom[Carrier](carrier: Carrier)(implicit traceCarrier: TraceCarrier[F, Carrier], F: Monad[F]): Tracer[F] =
+      new ConstCarrierTracer(carrier)(tracer)
   }
 
 }

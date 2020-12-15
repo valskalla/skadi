@@ -16,7 +16,8 @@
 
 package io.skadi
 
-import cats.data.{Kleisli, StateT}
+import cats.data.{Kleisli, StateT, WriterT}
+import cats.kernel.Monoid
 import cats.{Applicative, Monad}
 
 /**
@@ -36,7 +37,7 @@ trait Trace[F[_]] {
 
 }
 
-object Trace {
+object Trace extends TraceInstances {
 
   implicit def kleisliScopedTrace[F[_], Env](
       implicit F: Applicative[F],
@@ -64,5 +65,17 @@ object Trace {
         a
       }
   }
+
+}
+
+private[skadi] trait TraceInstances {
+
+  implicit def writerTtrace[F[_]: Applicative, L: Monoid](implicit trace: Trace[F]): Trace[WriterT[F, L, *]] =
+    new Trace[WriterT[F, L, *]] {
+      def getSpan: WriterT[F, L, Option[Span]] = WriterT.liftF(trace.getSpan)
+      def withSpan[A](span: Span)(fa: WriterT[F, L, A]): WriterT[F, L, A] = WriterT {
+        trace.withSpan(span)(fa.run)
+      }
+    }
 
 }
