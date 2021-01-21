@@ -160,7 +160,8 @@ class DefaultTracerSpec extends SkadiSpec {
           logs = List.empty,
           exception = None,
           startTime = startTime,
-          stopTime = None
+          stopTime = None,
+          baggageItems = Map.empty
         ),
         parent = parent.map(_.asInstanceOf[TestContext])
       ): Span).pure[F]
@@ -183,7 +184,8 @@ class DefaultTracerSpec extends SkadiSpec {
           logs = List.empty,
           startTime = startTime,
           exception = None,
-          stopTime = None
+          stopTime = None,
+          baggageItems = Map.empty
         ),
         parent = parent.map(_.asInstanceOf[TestContext])
       ): Span).pure[G]

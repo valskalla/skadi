@@ -17,6 +17,7 @@ trait Instances {
     startTime <- Gen.choose(0, System.currentTimeMillis()).map(Instant.ofEpochMilli)
     stopTime <- Gen.option(Gen.choose(0, System.currentTimeMillis()).map(Instant.ofEpochMilli))
     exception <- Gen.option(Gen.const(new Exception()))
+    baggageItems <- Gen.mapOf(genBaggageItem)
   } yield {
     TestSpan(
       data = Span.Data(
@@ -25,7 +26,8 @@ trait Instances {
         logs = logs,
         exception = exception,
         startTime = startTime,
-        stopTime = stopTime
+        stopTime = stopTime,
+        baggageItems = baggageItems
       ),
       parent = None
     )
@@ -44,6 +46,11 @@ trait Instances {
   } yield {
     key -> value
   }
+
+  def genBaggageItem: Gen[(String, String)] = for {
+    key <- Gen.alphaNumStr.suchThat(_.nonEmpty)
+    value <- Gen.alphaNumStr.suchThat(_.nonEmpty)
+  } yield key -> value
 
   def genTag: Gen[Tag] = for {
     i <- Gen.posNum[Int]

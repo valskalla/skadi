@@ -54,6 +54,11 @@ trait Span {
   def logs: List[TraceLog] = data.logs
 
   /**
+    * Returns current baggage items
+    */
+  def baggageItems: Map[String, String] = data.baggageItems
+
+  /**
     * Returns current span exception if set
     */
   def exception: Option[Throwable] = data.exception
@@ -94,6 +99,18 @@ trait Span {
   def withLogs(traceLogs: List[TraceLog]): Span = update(data.copy(logs = traceLogs ::: data.logs))
 
   /**
+    * Returns span with new baggage item added. Overwrites existing baggage item with same key
+    */
+  def withBaggageItem(key: String, value: String): Span = update(
+    data.copy(baggageItems = data.baggageItems + (key -> value))
+  )
+
+  /**
+    * Return span with new baggage items added. OVerwrites existing baggage items with the same keys
+    */
+  def withBaggageItems(items: Map[String, String]): Span = update(data.copy(baggageItems = data.baggageItems ++ items))
+
+  /**
     * Mark span with an exception, assuming it's a failed one
     */
   def withException(e: Throwable): Span = update(data.copy(exception = Some(e)))
@@ -113,7 +130,8 @@ object Span {
       logs: List[TraceLog],
       startTime: Instant,
       exception: Option[Throwable],
-      stopTime: Option[Instant]
+      stopTime: Option[Instant],
+      baggageItems: Map[String, String]
   )
 
 }

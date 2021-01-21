@@ -3,7 +3,6 @@ package io.skadi.opentracing
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import cats.data.Kleisli
 import cats.effect.IO
 import cats.syntax.all._
 import io.opentracing.mock.MockTracer
@@ -11,10 +10,11 @@ import io.opentracing.tag.Tags
 import io.skadi.opentracing.impl.OpentracingContext
 import io.skadi.{SkadiSpec, Span, Tag, TracerClock}
 import org.scalacheck.Gen
+import cats.data.StateT
 
 class SkadiOpentracingTracerSpec extends SkadiSpec {
 
-  type F[A] = Kleisli[IO, Option[Span], A]
+  type F[A] = StateT[IO, Option[Span], A]
 
   test("SkadiOpentracing.tracer builds & reports span to underlying OpenTracing tracer") {
     val now = Instant.now()
@@ -95,15 +95,17 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
 
     val Some(spanContext: OpentracingContext) = tracer
       .trace("op_name") {
-        tracer.getCarrier.map(_.get).flatMap(carrier => tracer.fromCarrier(carrier))
+        tracer.addBaggageItem("test", "foobar") >>
+          tracer.getCarrier.map(_.get).flatMap(carrier => tracer.fromCarrier(carrier))
       }
       .run(None)
       .unsafeRunSync()
+      ._2
 
     val finishedSpan = mockTracer.finishedSpans().get(0)
     spanContext.context.toSpanId shouldBe finishedSpan.context().toSpanId
     spanContext.context.toTraceId shouldBe finishedSpan.context().toTraceId
-
+    spanContext.context.baggageItems() shouldBe finishedSpan.context().baggageItems()
   }
 
   test("SkadiOpentracing.traceCarrier extracts nothing if context is empty") {
@@ -111,7 +113,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
     val mockTracer = new MockTracer()
     val traceCarrier = SkadiOpentracing[F](mockTracer).tracer.throughTextMap
-    traceCarrier.fromCarrier(Map.empty).run(None).unsafeRunSync() shouldBe None
+    traceCarrier.fromCarrier(Map.empty).run(None).unsafeRunSync()._2 shouldBe None
   }
 
   test("SkadiOpentracing.traceCarrier injects nothing if there is no span in context") {
@@ -119,6 +121,6 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
     val mockTracer = new MockTracer()
     val traceCarrier = SkadiOpentracing[F](mockTracer).tracer.throughTextMap
-    traceCarrier.getCarrier.run(None).unsafeRunSync() shouldBe None
+    traceCarrier.getCarrier.run(None).unsafeRunSync()._2 shouldBe None
   }
 }

@@ -49,7 +49,8 @@ class MockTracer[F[_]: TracerClock, Carrier](spansRef: Ref[F, List[MockSpan]], c
         startTime = startTime,
         logs = List.empty,
         exception = None,
-        stopTime = None
+        stopTime = None,
+        baggageItems = Map.empty
       ),
       parent = parent.map(_.asInstanceOf[MockSpan.MockContext])
     )

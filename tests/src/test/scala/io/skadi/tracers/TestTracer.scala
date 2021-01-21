@@ -23,7 +23,8 @@ class TestTracer[F[_]: Sync: Trace: TracerClock] extends DefaultTracer[WriterT[F
         logs = List.empty,
         startTime = startTime,
         exception = None,
-        stopTime = None
+        stopTime = None,
+        baggageItems = Map.empty
       ),
       parent = parent.map(_.asInstanceOf[TestSpan.TestContext])
     )

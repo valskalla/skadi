@@ -64,6 +64,19 @@ class OpentracingSpec extends SkadiSpec {
     }
   }
 
+  test("withBaggageItem adds a baggage item") {
+    forAll(genOpentracingSpan, genBaggageItem) {
+      case (span, (key, value)) =>
+        span.withBaggageItem(key, value).asInstanceOf[OpentracingSpan].baggageItems should contain(key -> value)
+    }
+  }
+
+  test("withBaggageItems adds baggage items") {
+    forAll(genOpentracingSpan, Gen.mapOf(genBaggageItem)) { (span, items) =>
+      span.withBaggageItems(items).asInstanceOf[OpentracingSpan].baggageItems should contain allElementsOf items
+    }
+  }
+
   def genOpentracingSpan: Gen[OpentracingSpan] =
     for {
       name <- Gen.alphaNumStr
@@ -72,6 +85,7 @@ class OpentracingSpec extends SkadiSpec {
       stopTime <- Gen.option(Gen.choose(0, System.currentTimeMillis()).map(Instant.ofEpochMilli))
       startTime <- Gen.choose(0, System.currentTimeMillis()).map(Instant.ofEpochMilli)
       logs <- Gen.listOf(genTraceLog)
+      baggageItems <- Gen.mapOf(genBaggageItem)
     } yield {
       OpentracingSpan(
         data = Span.Data(
@@ -80,7 +94,8 @@ class OpentracingSpec extends SkadiSpec {
           logs = logs,
           exception = exception,
           startTime = startTime,
-          stopTime = stopTime
+          stopTime = stopTime,
+          baggageItems = baggageItems
         ),
         new MockTracer().buildSpan(name).start()
       )
