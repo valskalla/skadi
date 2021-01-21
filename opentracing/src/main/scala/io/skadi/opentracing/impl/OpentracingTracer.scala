@@ -8,10 +8,9 @@ import cats.effect.Sync
 import cats.syntax.all._
 import io.opentracing.tag.Tags
 import io.opentracing.{Span => OTSpan, Tracer => OTracer}
-import io.skadi.opentracing.IllegalSpanKind
+import io.skadi.opentracing.{IllegalSpanKind,jEntiryIterableToScalaMap}
 import io.skadi.tracers.DefaultTracer
 import io.skadi._
-import scala.jdk.CollectionConverters._
 
 private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implicit F: Sync[F], clock: TracerClock[F])
     extends DefaultTracer[F] {
@@ -51,13 +50,7 @@ private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implici
         }
 
         val baggageItems = parentSpan
-          .map(
-            _.context
-              .baggageItems()
-              .asScala
-              .map(x => x.getKey() -> x.getValue())
-              .toMap
-          )
+          .map(x => jEntiryIterableToScalaMap(x.context.baggageItems()))
           .getOrElse(Map.empty)
 
         OpentracingSpan(
