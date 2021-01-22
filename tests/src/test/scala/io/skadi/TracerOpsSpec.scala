@@ -61,4 +61,18 @@ class TracerOpsSpec extends SkadiSpec {
     }
   }
 
+  test("Tracer[F : Stateful] adds baggage item") {
+    forAll(genSpan, genBaggageItem) {
+      case (span, (key, value)) =>
+        val Some(s: TestSpan) = Tracer.noop[F].addBaggageItem(key, value).runS(Some(span)).value
+        s.baggageItems should contain(key -> value)
+    }
+  }
+
+  test("Tracer[F : Stateful] adds baggage items") {
+    forAll(genSpan, Gen.mapOf(genBaggageItem)) { (span, items) =>
+      val Some(s: TestSpan) = Tracer.noop[F].addBaggageItems(items).runS(Some(span)).value
+      s.baggageItems should contain allElementsOf items
+    }
+  }
 }

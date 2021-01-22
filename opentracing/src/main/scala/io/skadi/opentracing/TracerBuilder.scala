@@ -23,7 +23,9 @@ class TracerBuilder[F[_]](openTracer: OTracer)(implicit F: Sync[F], t: Trace[F],
   /**
     * Tracer that works with any general Text map as carrier
     */
-  def throughTextMap[Carrier](implicit asCarrier: AsCarrier[Map[String, String], Carrier]): Tracer[F] with TraceCarrier[F, Carrier] =
+  def throughTextMap[Carrier](
+      implicit asCarrier: AsCarrier[Map[String, String], Carrier]
+  ): Tracer[F] with TraceCarrier[F, Carrier] =
     throughMap(Format.Builtin.TEXT_MAP)
 
   private def throughMap[Carrier](

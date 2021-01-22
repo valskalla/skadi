@@ -8,7 +8,7 @@ import cats.effect.Sync
 import cats.syntax.all._
 import io.opentracing.tag.Tags
 import io.opentracing.{Span => OTSpan, Tracer => OTracer}
-import io.skadi.opentracing.IllegalSpanKind
+import io.skadi.opentracing.{IllegalSpanKind, jEntiryIterableToScalaMap}
 import io.skadi.tracers.DefaultTracer
 import io.skadi._
 
@@ -21,6 +21,7 @@ private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implici
         .andThen(updateOperationName(opentracingSpan.name))
         .andThen(maybeMarkError(opentracingSpan.exception))
         .andThen(addLogs(opentracingSpan.logs))
+        .andThen(addBaggageItems(opentracingSpan.baggageItems))
         .andThen(finishSpan(opentracingSpan.stopTime))
         .run(opentracingSpan.underlying)
     case _ =>
@@ -48,6 +49,10 @@ private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implici
           case _       => builder
         }
 
+        val baggageItems = parentSpan
+          .map(x => jEntiryIterableToScalaMap(x.context.baggageItems()))
+          .getOrElse(Map.empty)
+
         OpentracingSpan(
           data = Span.Data(
             name = operationName,
@@ -55,7 +60,8 @@ private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implici
             logs = List.empty,
             startTime = startTime,
             exception = None,
-            stopTime = None
+            stopTime = None,
+            baggageItems = baggageItems
           ),
           underlying = withParent.ignoreActiveSpan().start()
         )
@@ -86,6 +92,15 @@ private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implici
   private def addLogs(logs: List[TraceLog]): Kleisli[F, OTSpan, OTSpan] = Kleisli { span =>
     F.delay {
       logs.foldLeft(span)((s, log) => s.log(instantToMicroseconds(log.timestamp), log.message))
+    }
+  }
+
+  private def addBaggageItems(items: Map[String, String]): Kleisli[F, OTSpan, OTSpan] = Kleisli { span =>
+    F.delay {
+      items.foldLeft(span) {
+        case (s, (key, value)) =>
+          s.setBaggageItem(key, value)
+      }
     }
   }
 

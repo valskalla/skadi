@@ -23,6 +23,9 @@ package object opentracing {
   private[skadi] def jmapToScala[K, V](hashMap: java.util.Map[K, V]): Map[K, V] =
     hashMap.asScala.toMap
 
+  private[skadi] def jEntiryIterableToScalaMap[K, V](iter: java.lang.Iterable[java.util.Map.Entry[K, V]]): Map[K, V] =
+    iter.asScala.map(x => x.getKey() -> x.getValue()).toMap
+
   private[skadi] def smapToJava[K, V](map: Map[K, V]): java.util.Map[K, V] =
     map.asJava
 

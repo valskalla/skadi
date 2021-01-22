@@ -19,6 +19,7 @@ package io.skadi
 import cats.syntax.all._
 import cats.{Monad, ~>}
 import io.skadi.tracers.{ConditionalTracer, ConstCarrierTracer, ConstTagsTracer}
+import cats.Applicative
 
 /**
   * Tracer acts as an abstraction layer over tracing.
@@ -179,6 +180,26 @@ object Tracer {
     )
 
     /**
+      * Add baggage item to existing span
+      */
+    def addBaggageItem(key: String, value: String)(implicit stateful: StatefulTrace[F]): F[Unit] = stateful.modifySpan(
+      _.withBaggageItem(key, value)
+    )
+
+    /**
+      * Add baggage items to existing span
+      */
+    def addBaggageItems(items: Map[String, String])(implicit stateful: StatefulTrace[F]): F[Unit] = stateful.modifySpan(
+      _.withBaggageItems(items)
+    )
+
+    /**
+      * Gets the baggage items from the current span
+      */
+    def baggageItems(implicit F: Applicative[F], stateful: StatefulTrace[F]): F[Map[String, String]] =
+      stateful.getSpan.map(_.map(_.baggageItems).getOrElse(Map.empty))
+
+    /**
       * Mark span as an error using provided exception
       */
     def setException(e: Throwable)(implicit stateful: StatefulTrace[F]): F[Unit] = stateful.modifySpan(
@@ -204,7 +225,9 @@ object Tracer {
       * Creates a tracer that prefers parent context from the carrier if it exists, and use the parent from arguments only
       * as a fallback
       */
-    def continueFrom[Carrier](carrier: Carrier)(implicit traceCarrier: TraceCarrier[F, Carrier], F: Monad[F]): Tracer[F] =
+    def continueFrom[Carrier](
+        carrier: Carrier
+    )(implicit traceCarrier: TraceCarrier[F, Carrier], F: Monad[F]): Tracer[F] =
       new ConstCarrierTracer(carrier)(tracer)
   }
 
