@@ -20,26 +20,31 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     val now = Instant.now()
     implicit val tracerClock: TracerClock[F] = TracerClock.const[F](now)
 
-    forAll(Gen.alphaNumStr, Gen.listOf(genTagPair), genTraceLog) { (operationName, tags, log) =>
-      val mockTracer = new MockTracer()
-      SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
-        .traceWith(operationName, tags: _*)(42.pure[F])((span, _) => span.withLog(log))
-        .run(None)
-        .unsafeRunSync()
+    forAll(Gen.alphaNumStr, Gen.listOf(genTagPair), genTraceLog, Gen.mapOf(genBaggageItem)) {
+      (operationName, tags, log, baggageItems) =>
+        val mockTracer = new MockTracer()
+        SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
+          .traceWith(operationName, tags: _*)(42.pure[F])((span, _) => span.withLog(log).withBaggageItems(baggageItems))
+          .run(None)
+          .unsafeRunSync()
 
-      val finishedSpan = mockTracer.finishedSpans().get(0)
+        val finishedSpan = mockTracer.finishedSpans().get(0)
 
-      finishedSpan.operationName() shouldBe operationName
-      jmapToScala(finishedSpan.tags()) should contain allElementsOf tags.map {
-        case (key, Tag.IntTag(v))     => key -> v
-        case (key, Tag.StringTag(v))  => key -> v
-        case (key, Tag.BooleanTag(v)) => key -> v
-      }.toMap
-      val logEntry = jlistToScala(finishedSpan.logEntries()).head
-      logEntry.timestampMicros() shouldBe {
-        TimeUnit.SECONDS.toMicros(log.timestamp.getEpochSecond) + TimeUnit.NANOSECONDS.toMicros(log.timestamp.getNano)
-      }
-      logEntry.fields().get("event") shouldBe log.message
+        finishedSpan.operationName() shouldBe operationName
+        jmapToScala(finishedSpan.tags()) should contain allElementsOf tags.map {
+          case (key, Tag.IntTag(v))     => key -> v
+          case (key, Tag.StringTag(v))  => key -> v
+          case (key, Tag.BooleanTag(v)) => key -> v
+        }.toMap
+        val logEntry = jlistToScala(finishedSpan.logEntries()).head
+        logEntry.timestampMicros() shouldBe {
+          TimeUnit.SECONDS.toMicros(log.timestamp.getEpochSecond) + TimeUnit.NANOSECONDS.toMicros(log.timestamp.getNano)
+        }
+        logEntry.fields().get("event") shouldBe log.message
+        baggageItems.foreach {
+          case (key, value) =>
+            finishedSpan.getBaggageItem(key) shouldBe value
+        }
     }
   }
 
@@ -105,7 +110,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     val finishedSpan = mockTracer.finishedSpans().get(0)
     spanContext.context.toSpanId shouldBe finishedSpan.context().toSpanId
     spanContext.context.toTraceId shouldBe finishedSpan.context().toTraceId
-    spanContext.context.baggageItems() shouldBe finishedSpan.context().baggageItems()
+    jEntiryIterableToScalaMap(finishedSpan.context().baggageItems()) should contain("test" -> "foobar")
   }
 
   test("SkadiOpentracing.traceCarrier extracts nothing if context is empty") {

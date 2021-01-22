@@ -8,7 +8,7 @@ import cats.effect.Sync
 import cats.syntax.all._
 import io.opentracing.tag.Tags
 import io.opentracing.{Span => OTSpan, Tracer => OTracer}
-import io.skadi.opentracing.{IllegalSpanKind,jEntiryIterableToScalaMap}
+import io.skadi.opentracing.{IllegalSpanKind, jEntiryIterableToScalaMap}
 import io.skadi.tracers.DefaultTracer
 import io.skadi._
 
