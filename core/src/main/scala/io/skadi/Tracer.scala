@@ -153,8 +153,19 @@ abstract class DefaultTracer[F[_]](implicit clock: TracerClock[F], F: Sync[F], t
         } yield ()
       )
 
-  protected def run[A](fa: SpanRef[F] => F[A], span: SpanRef[F]): F[A] =
-    trace.withSpan(span)(fa(span))
+  protected def run[A](fa: SpanRef[F] => F[A], spanRef: SpanRef[F]): F[A] = {
+    for {
+      span <- spanRef.span
+      result <- trace.withSpan(span) {
+        trace.getSpan.flatMap {
+          case Some(span) => fa(span)
+          case _ => F.raiseError(new IllegalStateException("trace.getSpan within trace.withSpan must always return a span"))
+        }
+      }
+    } yield {
+      result
+    }
+  }
 
   protected def onRelease(span: Span, exitCase: ExitCase[Throwable]): F[Unit] = exitCase match {
     case ExitCase.Error(e) =>

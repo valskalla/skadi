@@ -17,6 +17,8 @@
 package io.skadi
 
 import cats.data.{Kleisli, StateT}
+import cats.effect.Sync
+import cats.effect.concurrent.Ref
 import cats.{Applicative, Monad}
 import cats.syntax.all._
 
@@ -33,7 +35,7 @@ trait Trace[F[_]] {
   /**
     * Run `fa` with the provided span isolated
     */
-  def withSpan[A](span: SpanRef[F])(fa: F[A]): F[A]
+  def withSpan[A](span: Span)(fa: F[A]): F[A]
 
   def modify(fn: SpanRef[F] => F[Unit])(implicit F: Monad[F]): F[Unit] = getSpan.flatMap {
     case Some(ref) => fn(ref)
@@ -43,26 +45,32 @@ trait Trace[F[_]] {
 
 object Trace extends TraceInstances {
 
+  case class Env[F[_]](spanRef: SpanRef[F])
+  type Effect[F[_], -A] = Kleisli[F, Env[Effect[F, *]], A]
+
   implicit def kleisliScopedTrace[F[_], Env](
-      implicit F: Applicative[F],
-      hasSpan: HasSpan[Kleisli[F, Env, *], Env]
+      implicit F: Sync[F],
+      hasSpan: HasSpan[F, Env]
   ): Trace[Kleisli[F, Env, *]] = new Trace[Kleisli[F, Env, *]] {
 
     /**
       * Get span if it's set
       */
     override def getSpan: Kleisli[F, Env, Option[SpanRef[Kleisli[F, Env, *]]]] =
-      Kleisli.ask[F, Env].map(env => hasSpan.get(env))
+      Kleisli.ask[F, Env].map(env => hasSpan.get(env).map(_.mapK(Kleisli.liftK)))
 
     /**
       * Run `fa` with the provided span isolated
       */
-    override def withSpan[A](span: SpanRef[Kleisli[F, Env, *]])(fa: Kleisli[F, Env, A]): Kleisli[F, Env, A] = {
-      span.span.flatMap {
-        
+    override def withSpan[A](span: Span)(fa: Kleisli[F, Env, A]): Kleisli[F, Env, A] =
+      Kleisli[F, Env, A] { env =>
+        for {
+          newRef <- Ref.of(span)
+          result <- Kleisli.local(hasSpan.set(Some(SpanRef(newRef)), _))(fa).run(env)
+        } yield {
+          result
+        }
       }
-      Kleisli.local(hasSpan.set(Some(span), _))(fa)
-    }
   }
 
   implicit def stateTScopedTrace[F[_], Env](
