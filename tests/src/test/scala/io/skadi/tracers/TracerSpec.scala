@@ -10,7 +10,7 @@ import io.skadi.TestSpan.TestContext
 import io.skadi._
 import org.scalacheck.Gen
 
-class DefaultTracerSpec extends SkadiSpec {
+class TracerSpec extends SkadiSpec {
 
   type F[A] = Kleisli[WriterT[IO, List[Span], *], Option[Span], A]
 
@@ -144,7 +144,7 @@ class DefaultTracerSpec extends SkadiSpec {
   }
 
   private def mkTracer(implicit tracerClock: TracerClock[F]): Tracer[F] =
-    new DefaultTracer[F] {
+    new Tracer[F] {
       protected def report(span: Span): F[Unit] =
         Kleisli.liftF(WriterT.tell(List(span)))
 
@@ -167,7 +167,7 @@ class DefaultTracerSpec extends SkadiSpec {
     }
 
   private def mkTracer[G[_]: Sync: Trace: TracerClock](storage: Ref[G, Option[Span]]): Tracer[G] =
-    new DefaultTracer[G] {
+    new Tracer[G] {
       protected def report(span: Span): G[Unit] =
         storage.set(Some(span))
 

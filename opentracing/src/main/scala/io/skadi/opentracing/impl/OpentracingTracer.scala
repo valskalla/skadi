@@ -2,18 +2,16 @@ package io.skadi.opentracing.impl
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
 import cats.data.Kleisli
 import cats.effect.Sync
 import cats.syntax.all._
 import io.opentracing.tag.Tags
 import io.opentracing.{Span => OTSpan, Tracer => OTracer}
 import io.skadi.opentracing.IllegalSpanKind
-import io.skadi.tracers.DefaultTracer
-import io.skadi._
+import io.skadi.{Tracer, _}
 
 private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implicit F: Sync[F], clock: TracerClock[F])
-    extends DefaultTracer[F] {
+    extends Tracer[F] {
 
   protected def report(span: Span): F[Unit] = span match {
     case opentracingSpan: OpentracingSpan =>

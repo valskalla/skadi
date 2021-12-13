@@ -16,22 +16,24 @@
 
 package io.skadi
 
+import cats.effect.concurrent.Ref
+
 /**
   * Type class to describe how to extract & set span for some environment (i.e. `Kleisli` argument or `State`'s state)
   */
-trait HasSpan[Env] {
+trait HasSpan[F[_], Env] {
 
-  def get(env: Env): Option[Span]
-  def set(span: Option[Span], env: Env): Env
+  def get(env: Env): Option[SpanRef[F]]
+  def set(span: Option[SpanRef[F]], env: Env): Env
 
 }
 
 object HasSpan {
 
-  implicit val identityHasSpan: HasSpan[Option[Span]] = new HasSpan[Option[Span]] {
-    def get(env: Option[Span]): Option[Span] = env
+  implicit def identityHasSpan[F[_]]: HasSpan[F, Option[SpanRef[F]]] = new HasSpan[F, Option[SpanRef[F]]] {
+    def get(env: Option[SpanRef[F]]): Option[SpanRef[F]] = env
 
-    def set(span: Option[Span], env: Option[Span]): Option[Span] = span
+    def set(span: Option[SpanRef[F]], env: Option[SpanRef[F]]): Option[SpanRef[F]] = span
   }
 
 }
