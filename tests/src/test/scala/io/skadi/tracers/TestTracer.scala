@@ -1,11 +1,12 @@
 package io.skadi.tracers
 
-import java.time.Instant
 import cats.data.WriterT
 import cats.effect.Sync
-import io.skadi.{Context, Tracer, Span, Tag, TestSpan, Trace, TracerClock}
+import io.skadi._
 
-class TestTracer[F[_]: Sync: Trace: TracerClock] extends Tracer[WriterT[F, List[Span], *]]() {
+import java.time.Instant
+
+class TestTracer[F[_]: Sync: Trace: TracerClock] extends DefaultTracer[WriterT[F, List[Span], *]]() {
   protected def report(span: Span): WriterT[F, List[Span], Unit] =
     WriterT.tell(List(span))
 

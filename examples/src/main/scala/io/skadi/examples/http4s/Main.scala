@@ -1,10 +1,10 @@
 package io.skadi.examples.http4s
 
 import cats.effect.{ExitCode, Resource}
-import io.skadi.{Span, StatefulTrace, TraceCarrier, Tracer, TracerClock}
-import io.skadi.monix.initTaskStatefulTrace
-import monix.eval.{Task, TaskApp}
-import monix.execution.Scheduler
+import io.skadi.monix.initTaskTrace
+import io.skadi._
+import _root_.monix.eval.{Task, TaskApp}
+import _root_.monix.execution.Scheduler
 import org.http4s.Headers
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.dsl.Http4sDsl
@@ -22,7 +22,7 @@ object Main extends TaskApp with Http4sDsl[Task] {
 
   def run(args: List[String]): Task[ExitCode] =
     (for {
-      implicit0(trace: StatefulTrace[Task]) <- Resource.liftF(initTaskStatefulTrace[Option[Span]](None))
+      implicit0(trace: Trace[Task]) <- Resource.liftF(initTaskTrace[Option[SpanRef[Task]]](None))
       implicit0(tracer: Tracer[Task] with TraceCarrier[Task, Headers]) <- TracerResource.allocate
       client <- BlazeClientBuilder[Task](ExecutionContext.global).resource
       helloWorldClient = new HelloWorldClient[Task](client)

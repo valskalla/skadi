@@ -1,18 +1,29 @@
 package io.skadi.tracers
 
-import java.time.Instant
-
-import cats.data.{Kleisli, StateT, WriterT}
-import cats.effect.{IO, Sync}
+import cats.arrow.FunctionK
+import cats.data.{Kleisli, WriterT}
 import cats.effect.concurrent.Ref
+import cats.effect.{IO, Sync}
 import cats.syntax.all._
 import io.skadi.TestSpan.TestContext
 import io.skadi._
 import org.scalacheck.Gen
 
+import java.time.Instant
+
 class TracerSpec extends SkadiSpec {
 
-  type F[A] = Kleisli[WriterT[IO, List[Span], *], Option[Span], A]
+  type F[A] = Kleisli[WriterT[IO, List[Span], *], Option[SpanRef[IO]], A]
+
+  implicit val hasSpan: HasSpan[WriterT[IO, List[Span], *], Option[SpanRef[IO]]] =
+    new HasSpan[WriterT[IO, List[Span], *], Option[SpanRef[IO]]] {
+      def get(env: Option[SpanRef[IO]]): Option[SpanRef[WriterT[IO, List[Span], *]]] = env.map(_.mapK(WriterT.liftK))
+
+      def set(span: Option[SpanRef[WriterT[IO, List[Span], *]]], env: Option[SpanRef[IO]]): Option[SpanRef[IO]] =
+        span.map(_.mapK(new FunctionK[WriterT[IO, List[Span], *], IO] {
+          def apply[A](fa: WriterT[IO, List[Span], A]): IO[A] = fa.value
+        }))
+    }
 
   test("DefaultTracer reports traced span") {
     implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.ofEpochMilli(1L))
@@ -48,8 +59,8 @@ class TracerSpec extends SkadiSpec {
     forAll(Gen.alphaNumStr, Gen.alphaNumStr, Gen.mapOf(genTagPair), Gen.mapOf(genTagPair), genTraceLog) {
       (name: String, newName: String, tags: Map[String, Tag], newTags: Map[String, Tag], traceLog: TraceLog) =>
         val traced = tracer
-          .traceWith(name, tags.toList: _*)(42.pure[F]) { (span, _) =>
-            span.withName(newName).withTags(newTags.toList: _*).withLog(traceLog)
+          .traceWith(name, tags.toList: _*) { spanRef =>
+            spanRef.setName(newName) >> spanRef.setTags(newTags.toList: _*) >> spanRef.addLog(traceLog)
           }
           .run(None)
           .written
@@ -98,7 +109,7 @@ class TracerSpec extends SkadiSpec {
   }
 
   test("DefaultTracer marks span as error on exception") {
-    type F[A] = Kleisli[IO, Option[Span], A]
+    type F[A] = Kleisli[IO, Option[SpanRef[IO]], A]
 
     implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.ofEpochMilli(1))
 
@@ -118,33 +129,8 @@ class TracerSpec extends SkadiSpec {
     finishedSpan.exception shouldBe Some(e)
   }
 
-  test("DefaultTracer picks up span changes made in evaluation block when F : StatefulTrace") {
-    type F[A] = StateT[IO, Option[Span], A]
-    implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.ofEpochMilli(1))
-    val ref = Ref.unsafe[F, Option[Span]](None)
-    val tracer = mkTracer(ref)
-    forAll(Gen.alphaNumStr, Gen.alphaNumStr, Gen.mapOf(genTagPair), Gen.mapOf(genTagPair), genTraceLog) {
-      (name: String, newName: String, tags: Map[String, Tag], newTags: Map[String, Tag], traceLog: TraceLog) =>
-        val traced = (for {
-          _ <-
-            tracer
-              .trace(name, tags.toList: _*) {
-                tracer.setOperationName(newName) >> tracer.setTags(newTags.toList: _*) >> tracer.addLog(traceLog)
-              }
-          traced <- ref.get
-        } yield {
-          traced
-        }).runA(None).unsafeRunSync()
-
-        val Some(finishedSpan: TestSpan) = traced
-        finishedSpan.name shouldBe newName
-        finishedSpan.tags shouldBe (tags ++ newTags)
-        finishedSpan.logs shouldBe traceLog :: Nil
-    }
-  }
-
   private def mkTracer(implicit tracerClock: TracerClock[F]): Tracer[F] =
-    new Tracer[F] {
+    new DefaultTracer[F] {
       protected def report(span: Span): F[Unit] =
         Kleisli.liftF(WriterT.tell(List(span)))
 
@@ -167,7 +153,7 @@ class TracerSpec extends SkadiSpec {
     }
 
   private def mkTracer[G[_]: Sync: Trace: TracerClock](storage: Ref[G, Option[Span]]): Tracer[G] =
-    new Tracer[G] {
+    new DefaultTracer[G] {
       protected def report(span: Span): G[Unit] =
         storage.set(Some(span))
 

@@ -1,9 +1,9 @@
 package io.skadi
 
 import java.time.Instant
-
 import cats.data.{Kleisli, StateT}
-import cats.effect.IO
+import cats.effect.concurrent.Ref
+import cats.effect.{IO, Sync}
 import cats.syntax.all._
 import cats.{Eq, FlatMap}
 import org.scalacheck.{Arbitrary, Gen}
@@ -54,9 +54,20 @@ trait Instances {
     tag
   }
 
+  def genSpanRef[F[_]: Sync]: Gen[SpanRef[F]] = for {
+    span <- genSpan
+  } yield {
+    SpanRef(Ref.unsafe(span))
+  }
+
   implicit val eqSpan: Eq[Span] = Eq.fromUniversalEquals
 
   implicit val arbitrarySpan: Arbitrary[Span] = Arbitrary(genSpan)
+
+  implicit def arbitrarySpanRef[F[_]: Sync]: Arbitrary[SpanRef[F]] = Arbitrary(genSpanRef)
+
+  implicit def eqSpanRef[F[_]](implicit eq: Eq[F[Span]]): Eq[SpanRef[F]] =
+    Eq.instance((sa, sb) => eq.eqv(sa.span, sb.span))
 
   implicit def eqKleisli[F[_], Env, A](implicit arbEnv: Arbitrary[Env], eqA: Eq[F[A]]): Eq[Kleisli[F, Env, A]] =
     Eq.instance { (fa, fb) =>

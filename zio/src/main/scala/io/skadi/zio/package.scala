@@ -21,7 +21,7 @@ import _root_.zio.{FiberRef, ZIO}
 package object zio {
 
   /**
-    * Safe initialization of `StatefulTrace` type class of ZIO that relies on `FiberRef` mechanism.
+    * Safe initialization of `Trace` type class of ZIO that relies on `FiberRef` mechanism.
     * Check corresponding documentation before using `https://zio.dev/docs/datatypes/datatypes_fiberref`.
     *
     * It's generally recommended to create separate & isolated spans for concurrent processes instead of sharing the
@@ -36,23 +36,24 @@ package object zio {
     *
     * @param init Initial value of environment (state) that keeps span
     */
-  def initZIOStatefulTrace[R, E, Env: HasSpan](init: => Env): ZIO[R, E, StatefulTrace[ZIO[R, E, *]]] =
-    ZIO.succeed(init).flatMap(env => FiberRef.make(env).map(ioStatefulTrace[R, E, Env]))
+  def initZIOTrace[R, E, Env](
+      init: => Env
+  )(implicit hasSpan: HasSpan[ZIO[R, E, *], Env]): ZIO[R, E, Trace[ZIO[R, E, *]]] =
+    ZIO.succeed(init).flatMap(env => FiberRef.make(env).map(zioTrace[R, E, Env]))
 
-  private[skadi] def ioStatefulTrace[R, E, Env](
+  private[skadi] def zioTrace[R, E, Env](
       fiberRef: FiberRef[Env]
-  )(implicit hasSpan: HasSpan[Env]): StatefulTrace[ZIO[R, E, *]] =
-    new StatefulTrace[ZIO[R, E, *]] {
-      def setSpan(span: Span): ZIO[R, E, Unit] = fiberRef.update(hasSpan.set(Some(span), _))
+  )(implicit hasSpan: HasSpan[ZIO[R, E, *], Env]): Trace[ZIO[R, E, *]] =
+    new Trace[ZIO[R, E, *]] {
+      def getSpan: ZIO[R, E, Option[SpanRef[ZIO[R, E, *]]]] = fiberRef.get.map(hasSpan.get)
 
-      def modifySpan(fn: Span => Span): ZIO[R, E, Unit] = fiberRef.update { env =>
-        hasSpan.set(hasSpan.get(env).map(fn), env)
+      def withSpan[A](span: SpanRef[ZIO[R, E, *]])(fa: ZIO[R, E, A]): ZIO[R, E, A] = fiberRef.get.flatMap { env =>
+        fiberRef.locally(hasSpan.set(Some(span), env))(fa)
       }
 
-      def getSpan: ZIO[R, E, Option[Span]] = fiberRef.get.map(hasSpan.get)
-
-      def withSpan[A](span: Span)(fa: ZIO[R, E, A]): ZIO[R, E, A] = fiberRef.get.flatMap { env =>
-        fiberRef.locally(hasSpan.set(Some(span), env))(fa)
+      def modifySpan(s: SpanRef[ZIO[R, E, *]] => ZIO[R, E, Unit]): ZIO[R, E, Unit] = getSpan.flatMap {
+        case Some(value) => s(value)
+        case None        => ZIO.unit
       }
     }
 

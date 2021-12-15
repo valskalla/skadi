@@ -17,11 +17,11 @@
 package io.skadi.zio
 
 import cats.Eq
-import io.skadi.{SkadiSpec, Span, StatefulTrace}
-import io.skadi.laws.StatefulTraceLaws
+import io.skadi.laws.TraceLaws
+import io.skadi.{SkadiSpec, SpanRef}
 import org.scalacheck.Arbitrary
-import zio.{RIO, ZEnv, ZIO}
 import zio.interop.catz._
+import zio.{RIO, ZEnv, ZIO}
 
 class TraceZIOSpec extends SkadiSpec {
   private val runtime = zio.Runtime.default
@@ -40,8 +40,8 @@ class TraceZIOSpec extends SkadiSpec {
   )
 
   runtime.unsafeRun {
-    initZIOStatefulTrace[ZEnv, Throwable, Option[Span]](None)
-      .map { implicit st: StatefulTrace[RIO[ZEnv, *]] => checkAll("ZIO", StatefulTraceLaws[RIO[ZEnv, *]].all) }
+    initZIOTrace[ZEnv, Throwable, Option[SpanRef[ZIO[ZEnv, Throwable, *]]]](None)
+      .map(implicit trace => checkAll("ZIO", TraceLaws[RIO[ZEnv, *]].all))
   }
 
 }

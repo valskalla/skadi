@@ -16,7 +16,8 @@
 
 package io.skadi
 
-import cats.{Applicative, Functor, ~>}
+import cats.effect.Sync
+import cats.{Applicative, ~>}
 import cats.effect.concurrent.Ref
 import cats.syntax.all._
 
@@ -24,8 +25,8 @@ import java.time.Instant
 
 trait SpanRef[F[_]] { self =>
 
-  protected def get[A](f: Span => A): F[A]
-  protected def update(f: Span => Span): F[Unit]
+  def get[A](f: Span => A): F[A]
+  def update(f: Span => Span): F[Unit]
 
   /**
     * Get snapshot of the underlying span
@@ -116,23 +117,23 @@ trait SpanRef[F[_]] { self =>
     * Transform effect type of the SpanRef by applying a natural transformation to its results
     */
   def mapK[G[_]](nat: F ~> G): SpanRef[G] = new SpanRef[G] {
-    protected def get[A](f: Span => A): G[A] = nat(self.get(f))
-    protected def update(f: Span => Span): G[Unit] = nat(self.update(f))
+    def get[A](f: Span => A): G[A] = nat(self.get(f))
+    def update(f: Span => Span): G[Unit] = nat(self.update(f))
   }
 
 }
 
 object SpanRef {
 
-  private case class SRef[F[_]](underlying: Ref[F, Span])(implicit F: Functor[F]) extends SpanRef[F] {
-    protected def get[A](f: Span => A): F[A] = underlying.get.map(f)
-    protected def update(f: Span => Span): F[Unit] = underlying.update(f)
+  private case class SRef[F[_]](underlying: Ref[F, Span])(implicit F: Sync[F]) extends SpanRef[F] {
+    def get[A](f: Span => A): F[A] = underlying.get.map(f)
+    def update(f: Span => Span): F[Unit] = underlying.update(f)
   }
 
-  def apply[F[_]](underlying: Ref[F, Span])(implicit F: Functor[F]): SpanRef[F] = SRef(underlying)
+  def apply[F[_]](underlying: Ref[F, Span])(implicit F: Sync[F]): SpanRef[F] = SRef(underlying)
 
   def noop[F[_]](implicit F: Applicative[F]): SpanRef[F] = new SpanRef[F] {
-    protected def get[A](f: Span => A): F[A] = F.pure(f(Span.Noop))
-    protected def update(f: Span => Span): F[Unit] = F.unit
+    def get[A](f: Span => A): F[A] = F.pure(f(Span.Noop))
+    def update(f: Span => Span): F[Unit] = F.unit
   }
 }

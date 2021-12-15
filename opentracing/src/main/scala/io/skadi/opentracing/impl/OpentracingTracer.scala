@@ -8,10 +8,10 @@ import cats.syntax.all._
 import io.opentracing.tag.Tags
 import io.opentracing.{Span => OTSpan, Tracer => OTracer}
 import io.skadi.opentracing.IllegalSpanKind
-import io.skadi.{Tracer, _}
+import io.skadi._
 
 private[skadi] class OpentracingTracer[F[_]: Trace](openTracer: OTracer)(implicit F: Sync[F], clock: TracerClock[F])
-    extends Tracer[F] {
+    extends DefaultTracer[F] {
 
   protected def report(span: Span): F[Unit] = span match {
     case opentracingSpan: OpentracingSpan =>

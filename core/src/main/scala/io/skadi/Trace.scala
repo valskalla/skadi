@@ -16,10 +16,11 @@
 
 package io.skadi
 
-import cats.data.{Kleisli, StateT}
-import cats.effect.Sync
-import cats.effect.concurrent.Ref
+import cats.arrow.FunctionK
 import cats.{Applicative, Monad}
+import cats.data.{Kleisli, WriterT}
+import cats.effect.Sync
+import cats.kernel.Monoid
 import cats.syntax.all._
 
 /**
@@ -33,20 +34,50 @@ trait Trace[F[_]] {
   def getSpan: F[Option[SpanRef[F]]]
 
   /**
-    * Run `fa` with the provided span isolated
+    * Update SpanRef within the env
     */
-  def withSpan[A](span: Span)(fa: F[A]): F[A]
+  def modifySpan(s: SpanRef[F] => F[Unit]): F[Unit]
 
-  def modify(fn: SpanRef[F] => F[Unit])(implicit F: Monad[F]): F[Unit] = getSpan.flatMap {
-    case Some(ref) => fn(ref)
-  }
+  /**
+    * Run `fa` with the provided span as a part of environment
+    */
+  def withSpan[A](span: SpanRef[F])(fa: F[A]): F[A]
 
+  /**
+    * Change operation name of running span (if any)
+    */
+  def setOperationName(name: String): F[Unit] = modifySpan(_.setName(name))
+
+  /**
+    * Add tag to existing span (if any)
+    */
+  def setTag(name: String, value: Tag): F[Unit] = modifySpan(_.setTag(name, value))
+
+  /**
+    * Add tags to existing span (if any)
+    */
+  def setTags(tags: (String, Tag)*): F[Unit] = modifySpan(_.setTags(tags: _*))
+
+  /**
+    * Add log to existing span (if any)
+    */
+  def addLog(log: TraceLog): F[Unit] = modifySpan(_.addLog(log))
+
+  def addLog(log: String)(implicit clock: TracerClock[F], F: Monad[F]): F[Unit] =
+    clock.realTime.flatMap(now => addLog(TraceLog(now, log)))
+
+  /**
+    * Add logs to existing span (if any)
+    */
+  def addLogs(logs: List[TraceLog]): F[Unit] = modifySpan(_.addLogs(logs))
+
+  /**
+    * Mark span as an error using provided exception
+    */
+  def setException(e: Throwable): F[Unit] = modifySpan(_.setException(e))
 }
 
 object Trace extends TraceInstances {
-
-  case class Env[F[_]](spanRef: SpanRef[F])
-  type Effect[F[_], -A] = Kleisli[F, Env[Effect[F, *]], A]
 
   implicit def kleisliScopedTrace[F[_], Env](
       implicit F: Sync[F],
@@ -56,50 +87,48 @@ object Trace extends TraceInstances {
     /**
       * Get span if it's set
       */
-    override def getSpan: Kleisli[F, Env, Option[SpanRef[Kleisli[F, Env, *]]]] =
+    def getSpan: Kleisli[F, Env, Option[SpanRef[Kleisli[F, Env, *]]]] =
       Kleisli.ask[F, Env].map(env => hasSpan.get(env).map(_.mapK(Kleisli.liftK)))
 
     /**
-      * Run `fa` with the provided span isolated
+      * Run `fa` with the provided span as a part of environment
       */
-    override def withSpan[A](span: Span)(fa: Kleisli[F, Env, A]): Kleisli[F, Env, A] =
+    def withSpan[A](span: SpanRef[Kleisli[F, Env, *]])(fa: Kleisli[F, Env, A]): Kleisli[F, Env, A] =
       Kleisli[F, Env, A] { env =>
-        for {
-          newRef <- Ref.of(span)
-          result <- Kleisli.local(hasSpan.set(Some(SpanRef(newRef)), _))(fa).run(env)
-        } yield {
-          result
-        }
+        val nat = Kleisli.applyK[F, Env](env)
+        Kleisli.local(hasSpan.set(Some(span.mapK[F](nat)), _))(fa).run(env)
       }
-  }
 
-  implicit def stateTScopedTrace[F[_], Env](
-      implicit F: Monad[F],
-      hasSpan: HasSpan[StateT[F, Env, *], Env]
-  ): Trace[StateT[F, Env, *]] = new Trace[StateT[F, Env, *]] {
-    def getSpan: StateT[F, Env, Option[SpanRef[StateT[F, Env, *]]]] = StateT.get[F, Env].map(hasSpan.get)
-
-    def withSpan[A](span: SpanRef[StateT[F, Env, *]])(fa: StateT[F, Env, A]): StateT[F, Env, A] =
-      for {
-        env <- StateT.get[F, Env]
-        _ <- StateT.modify(hasSpan.set(Some(span), _))
-        a <- fa
-        _ <- StateT.modify[F, Env](newEnv => hasSpan.set(hasSpan.get(env), newEnv))
-      } yield {
-        a
-      }
+    /**
+      * Update SpanRef within the env
+      */
+    def modifySpan(s: SpanRef[Kleisli[F, Env, *]] => Kleisli[F, Env, Unit]): Kleisli[F, Env, Unit] = getSpan.flatMap {
+      case Some(span) => s(span)
+      case None       => Kleisli.pure(())
+    }
   }
 
 }
 
 private[skadi] trait TraceInstances {
 
-  /*implicit def writerTrace[F[_]: Applicative, L: Monoid](implicit trace: Trace[F]): Trace[WriterT[F, L, *]] =
+  implicit def writerTrace[F[_]: Applicative, L: Monoid](implicit trace: Trace[F]): Trace[WriterT[F, L, *]] =
     new Trace[WriterT[F, L, *]] {
-      def getSpan: WriterT[F, L, Option[SpanRef[WriterT[F, L, *], Span]]] = WriterT.liftF(trace.getSpan)
-      def withSpan[A](span: SpanRef[WriterT[F, L, *], Span])(fa: WriterT[F, L, A]): WriterT[F, L, A] = trace.withSpan(span.mapK(new FunctionK[WriterT[F, L, *], F] {
-        def apply[A](fa: WriterT[F, L, A]): F[A] = fa.value
-      }))(fa.run)
-    }*/
+
+      def getSpan: WriterT[F, L, Option[SpanRef[WriterT[F, L, *]]]] = WriterT.liftF(trace.getSpan).map {
+        _.map(ref => ref.mapK(WriterT.liftK))
+      }
+
+      def modifySpan(s: SpanRef[WriterT[F, L, *]] => WriterT[F, L, Unit]): WriterT[F, L, Unit] =
+        WriterT.liftF(
+          trace.modifySpan(s.compose[SpanRef[F]](span => span.mapK(WriterT.liftK)).andThen(w => w.value))
+        )
+
+      def withSpan[A](span: SpanRef[WriterT[F, L, *]])(fa: WriterT[F, L, A]): WriterT[F, L, A] = WriterT(
+        trace.withSpan(span.mapK(new FunctionK[WriterT[F, L, *], F] {
+          def apply[V](fa: WriterT[F, L, V]): F[V] = fa.value
+        }))(fa.run)
+      )
+    }
 
 }

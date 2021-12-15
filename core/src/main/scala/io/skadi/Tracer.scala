@@ -16,11 +16,10 @@
 
 package io.skadi
 
-import cats.{Applicative, Defer, Monad, ~>}
-import cats.data.StateT
 import cats.effect.concurrent.Ref
 import cats.effect.{ExitCase, Resource, Sync}
 import cats.syntax.all._
+import cats.{Applicative, Monad}
 import io.skadi.tracers.{ConditionalTracer, ConstCarrierTracer, ConstTagsTracer}
 
 import java.time.Instant
@@ -153,19 +152,8 @@ abstract class DefaultTracer[F[_]](implicit clock: TracerClock[F], F: Sync[F], t
         } yield ()
       )
 
-  protected def run[A](fa: SpanRef[F] => F[A], spanRef: SpanRef[F]): F[A] = {
-    for {
-      span <- spanRef.span
-      result <- trace.withSpan(span) {
-        trace.getSpan.flatMap {
-          case Some(span) => fa(span)
-          case _ => F.raiseError(new IllegalStateException("trace.getSpan within trace.withSpan must always return a span"))
-        }
-      }
-    } yield {
-      result
-    }
-  }
+  protected def run[A](fa: SpanRef[F] => F[A], spanRef: SpanRef[F]): F[A] =
+    trace.withSpan(spanRef)(fa(spanRef))
 
   protected def onRelease(span: Span, exitCase: ExitCase[Throwable]): F[Unit] = exitCase match {
     case ExitCase.Error(e) =>
@@ -207,73 +195,27 @@ object Tracer {
   implicit class TracerOps[F[_]](tracer: Tracer[F]) {
 
     /**
-     * Change operation name of running span (if any)
-     */
-    def setOperationName(name: String)(implicit t: Trace[F]): F[Unit] = t.modify() stateful.modifySpan(
-      _.withName(name)
-    )
-
-    /**
-     * Add tag to existing span (if any)
-     */
-    def setTag(name: String, value: Tag): F[Unit] =
-      stateful.modifySpan(
-        _.withTag(name, value)
-      )
-
-    /**
-     * Add tags to existing span (if any)
-     */
-    def setTags(tags: (String, Tag)*)(implicit stateful: StatefulTrace[F]): F[Unit] = stateful.modifySpan(
-      _.withTags(tags: _*)
-    )
-
-    /**
-     * Add log to existing span (if any)
-     */
-    def addLog(log: TraceLog): F[Unit] = stateful.modifySpan(
-      _.withLog(log)
-    )
-
-    def addLog(log: String)(implicit stateful: StatefulTrace[F], clock: TracerClock[F], F: Monad[F]): F[Unit] =
-      clock.realTime.flatMap(now => addLog(TraceLog(now, log)))
-
-    /**
-     * Add logs to existing span (if any)
-     */
-    def addLogs(logs: List[TraceLog]): F[Unit] = stateful.modifySpan(
-      _.withLogs(logs)
-    )
-
-    /**
-     * Mark span as an error using provided exception
-     */
-    def setException(e: Throwable): F[Unit] = stateful.modifySpan(
-      _.withException(e)
-    )
-
-    /**
-     * Turns the tracer into conditional one that enables the tracing only when condition `F[Boolean]` evaluates to `true`.
-     *
-     * Could be useful when tracing should be skipped due to reasons.
-     */
-    def conditional(condition: => F[Boolean])(implicit F: Monad[F]): TracerLike[F] =
+      * Turns the tracer into conditional one that enables the tracing only when condition `F[Boolean]` evaluates to `true`.
+      *
+      * Could be useful when tracing should be skipped due to reasons.
+      */
+    def conditional(condition: => F[Boolean])(implicit F: Monad[F]): Tracer[F] =
       new ConditionalTracer[F](condition)(tracer)
 
     /**
-     * Tracer that always adds a predefined set of tags to every span. Actual caller might overwrite tags if they match
-     * by key
-     */
-    def withConstTags(tags: Map[String, Tag])(implicit F: Applicative[F]): TracerLike[F] =
+      * Tracer that always adds a predefined set of tags to every span. Actual caller might overwrite tags if they match
+      * by key
+      */
+    def withConstTags(tags: Map[String, Tag])(implicit F: Applicative[F]): Tracer[F] =
       new ConstTagsTracer[F](tags)(tracer)
 
     /**
-     * Creates a tracer that prefers parent context from the carrier if it exists, and use the parent from arguments only
-     * as a fallback
-     */
+      * Creates a tracer that prefers parent context from the carrier if it exists, and use the parent from arguments only
+      * as a fallback
+      */
     def continueFrom[Carrier](
-                               carrier: Carrier
-                             )(implicit traceCarrier: TraceCarrier[F, Carrier], F: Monad[F]): TracerLike[F] =
+        carrier: Carrier
+    )(implicit traceCarrier: TraceCarrier[F, Carrier], F: Monad[F]): Tracer[F] =
       new ConstCarrierTracer(carrier)(tracer)
 
   }

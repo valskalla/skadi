@@ -16,8 +16,6 @@
 
 package io.skadi
 
-import cats.effect.concurrent.Ref
-
 /**
   * Type class to describe how to extract & set span for some environment (i.e. `Kleisli` argument or `State`'s state)
   */
