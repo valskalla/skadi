@@ -107,6 +107,14 @@ trait Span {
 
 object Span {
 
+  case object Noop extends Span {
+    val data: Data = Data("noop", Map.empty, List.empty, Instant.EPOCH, None, None)
+
+    val context: Context = Context.Empty
+
+    def update(data: Data): Span = Noop
+  }
+
   case class Data(
       name: String,
       tags: Map[String, Tag],

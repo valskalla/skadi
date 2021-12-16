@@ -1,4 +1,4 @@
-lazy val scalaVersions = List("2.13.4", "2.12.12")
+lazy val scalaVersions = List("2.13.7", "2.12.12")
 
 lazy val `skadi-core` = project
   .in(file("core"))
@@ -136,7 +136,7 @@ lazy val dependencies = new {
 lazy val sharedSettings = Seq(
   scalaVersion := "2.13.2",
   organization := "com.github.valskalla",
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.2" cross CrossVersion.full),
+  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.full),
   crossScalaVersions := scalaVersions,
   classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.ScalaLibrary,
   scalacOptions := scalacOptionsVersion(scalaVersion.value),

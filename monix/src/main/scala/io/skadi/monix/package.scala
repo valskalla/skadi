@@ -5,7 +5,7 @@ import _root_.monix.eval._
 package object monix {
 
   /**
-    * Safe initialization of `StatefulTrace` type class of Monix Task that relies on `TaskLocal` mechanism.
+    * Safe initialization of `Trace` type class of Monix Task that relies on `TaskLocal` mechanism.
     * Check corresponding documentation before using `https://monix.io/docs/current/execution/local.html`.
     *
     * It's very important to keep in mind that `TaskLocal` doesn't provide auto-isolation out of the box
@@ -23,24 +23,22 @@ package object monix {
     *
     * @param init Initial value of environment (state) that keeps span
     */
-  def initTaskStatefulTrace[Env: HasSpan](init: => Env): Task[StatefulTrace[Task]] =
+  def initTaskTrace[Env](init: => Env)(implicit hasSpan: HasSpan[Task, Env]): Task[Trace[Task]] =
     TaskLocal.lazyDefault(Coeval(init)).map(taskStatefulTrace[Env])
 
-  private def taskStatefulTrace[Env](local: TaskLocal[Env])(implicit hasSpan: HasSpan[Env]): StatefulTrace[Task] =
-    new StatefulTrace[Task] {
-      def setSpan(span: Span): Task[Unit] =
-        local.read.flatMap(env => local.write(hasSpan.set(Some(span), env)))
+  private def taskStatefulTrace[Env](local: TaskLocal[Env])(implicit hasSpan: HasSpan[Task, Env]): Trace[Task] =
+    new Trace[Task] {
 
-      def getSpan: Task[Option[Span]] =
+      def getSpan: Task[Option[SpanRef[Task]]] =
         local.read.map(hasSpan.get)
 
-      def withSpan[A](span: Span)(fa: Task[A]): Task[A] =
+      def withSpan[A](span: SpanRef[Task])(fa: Task[A]): Task[A] =
         local.read.flatMap(env => local.bind(hasSpan.set(Some(span), env))(fa))
 
-      def modifySpan(fn: Span => Span): Task[Unit] = local.read.flatMap { env =>
+      def modifySpan(fn: SpanRef[Task] => Task[Unit]): Task[Unit] = local.read.flatMap { env =>
         hasSpan.get(env) match {
-          case Some(span) => setSpan(fn(span))
-          case _          => Task.unit
+          case Some(ref) => fn(ref)
+          case _         => Task.unit
         }
       }
     }

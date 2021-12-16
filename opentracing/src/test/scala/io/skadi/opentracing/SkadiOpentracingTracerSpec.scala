@@ -1,20 +1,20 @@
 package io.skadi.opentracing
 
-import java.time.Instant
-import java.util.concurrent.TimeUnit
-
 import cats.data.Kleisli
 import cats.effect.IO
 import cats.syntax.all._
 import io.opentracing.mock.MockTracer
 import io.opentracing.tag.Tags
 import io.skadi.opentracing.impl.OpentracingContext
-import io.skadi.{SkadiSpec, Span, Tag, TracerClock}
+import io.skadi.{SkadiSpec, SpanRef, Tag, TracerClock}
 import org.scalacheck.Gen
+
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 class SkadiOpentracingTracerSpec extends SkadiSpec {
 
-  type F[A] = Kleisli[IO, Option[Span], A]
+  type F[A] = Kleisli[IO, Option[SpanRef[IO]], A]
 
   test("SkadiOpentracing.tracer builds & reports span to underlying OpenTracing tracer") {
     val now = Instant.now()
@@ -23,7 +23,7 @@ class SkadiOpentracingTracerSpec extends SkadiSpec {
     forAll(Gen.alphaNumStr, Gen.listOf(genTagPair), genTraceLog) { (operationName, tags, log) =>
       val mockTracer = new MockTracer()
       SkadiOpentracing[F](mockTracer).tracer.throughHttpHeaders
-        .traceWith(operationName, tags: _*)(42.pure[F])((span, _) => span.withLog(log))
+        .traceWith(operationName, tags: _*)(spanRef => spanRef.addLog(log))
         .run(None)
         .unsafeRunSync()
 

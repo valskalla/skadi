@@ -17,12 +17,10 @@
 package io.skadi.mock
 
 import java.time.Instant
-
 import cats.effect.Sync
 import cats.effect.concurrent.Ref
 import cats.syntax.all._
-import io.skadi.{AsCarrier, Context, Span, Tag, Trace, TraceCarrier, TracerClock}
-import io.skadi.tracers.DefaultTracer
+import io.skadi.{AsCarrier, Context, DefaultTracer, Span, Tag, Trace, TraceCarrier, TracerClock}
 
 class MockTracer[F[_]: TracerClock, Carrier](spansRef: Ref[F, List[MockSpan]], counter: Ref[F, Long])(
     implicit protected val F: Sync[F],

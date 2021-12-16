@@ -16,18 +16,18 @@
 
 package io.skadi.mock
 
-import java.time.Instant
-
 import cats.data.Kleisli
 import cats.effect.IO
 import cats.syntax.all._
 import io.skadi.mock.MockSpan.MockContext
-import io.skadi.{SkadiSpec, Span, TracerClock}
+import io.skadi.{SkadiSpec, SpanRef, TracerClock}
 import org.scalacheck.Gen
+
+import java.time.Instant
 
 class MockTracerSpec extends SkadiSpec {
 
-  type F[A] = Kleisli[IO, Option[Span], A]
+  type F[A] = Kleisli[IO, Option[SpanRef[IO]], A]
   implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.now())
 
   test("MockTracer should keep record of recorded spans") {

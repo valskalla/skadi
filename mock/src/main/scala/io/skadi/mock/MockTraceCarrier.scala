@@ -24,7 +24,7 @@ trait MockTraceCarrier[F[_], Carrier] extends TraceCarrier[F, Carrier] { self: M
   def fromCarrier(carrier: Carrier): F[Option[Context]] =
     F.pure(MockSpan.MockContext.fromMap(_carrier.from(carrier)))
 
-  def getCarrier: F[Option[Carrier]] = self._trace.getSpan.map(_.map { span =>
-    _carrier.to(MockContext.toMap(span.context.asInstanceOf[MockContext]))
+  def getCarrier: F[Option[Carrier]] = self._trace.getSpan.flatMap(_.traverse { spanRef =>
+    spanRef.context.map(_.asInstanceOf[MockContext]).map(MockContext.toMap).map(_carrier.to)
   })
 }

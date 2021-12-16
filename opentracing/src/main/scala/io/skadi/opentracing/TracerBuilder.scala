@@ -5,7 +5,7 @@ import cats.syntax.all._
 import io.opentracing.propagation.{Format, TextMap, TextMapAdapter}
 import io.opentracing.{SpanContext, Tracer => OTracer}
 import io.skadi.opentracing.impl.{OpentracingContext, OpentracingSpan, OpentracingTracer}
-import io.skadi.{AsCarrier, Context, Span, Trace, TraceCarrier, Tracer, TracerClock}
+import io.skadi._
 
 /**
   * Builder of `io.skadi.Tracer` that creates a combination of `Tracer` and `TraceCarrier` as a result.
@@ -23,7 +23,9 @@ class TracerBuilder[F[_]](openTracer: OTracer)(implicit F: Sync[F], t: Trace[F],
   /**
     * Tracer that works with any general Text map as carrier
     */
-  def throughTextMap[Carrier](implicit asCarrier: AsCarrier[Map[String, String], Carrier]): Tracer[F] with TraceCarrier[F, Carrier] =
+  def throughTextMap[Carrier](
+      implicit asCarrier: AsCarrier[Map[String, String], Carrier]
+  ): Tracer[F] with TraceCarrier[F, Carrier] =
     throughMap(Format.Builtin.TEXT_MAP)
 
   private def throughMap[Carrier](
@@ -43,8 +45,8 @@ class TracerBuilder[F[_]](openTracer: OTracer)(implicit F: Sync[F], t: Trace[F],
         case _          => F.pure(None)
       }
 
-      private def toContext(span: Span): F[Carrier] =
-        span match {
+      private def toContext(ref: SpanRef[F]): F[Carrier] =
+        ref.span.flatMap {
           case opentracingSpan: OpentracingSpan =>
             F.delay {
               val map = new java.util.HashMap[String, String]()

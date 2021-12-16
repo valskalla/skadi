@@ -16,18 +16,20 @@ class ConditionalTracerSpec extends SkadiSpec {
     trace(None -> true) shouldNot be(empty)
   }
 
-  private def trace(env: (Option[Span], Boolean)): List[Span] = {
-    type F[A] = Kleisli[IO, (Option[Span], Boolean), A]
+  private def trace(env: (Option[SpanRef[IO]], Boolean)): List[Span] = {
+    type F[A] = Kleisli[IO, (Option[SpanRef[IO]], Boolean), A]
     implicit val clock: TracerClock[F] = TracerClock.const[F](Instant.now())
-    implicit val hasSpan: HasSpan[(Option[Span], Boolean)] = new HasSpan[(Option[Span], Boolean)] {
-      def get(env: (Option[Span], Boolean)): Option[Span] = env._1
-      def set(span: Option[Span], env: (Option[Span], Boolean)): (Option[Span], Boolean) = env.copy(_1 = span)
-    }
+    implicit val hasSpan: HasSpan[IO, (Option[SpanRef[IO]], Boolean)] =
+      new HasSpan[IO, (Option[SpanRef[IO]], Boolean)] {
+        def get(env: (Option[SpanRef[IO]], Boolean)): Option[SpanRef[IO]] = env._1
+        def set(span: Option[SpanRef[IO]], env: (Option[SpanRef[IO]], Boolean)): (Option[SpanRef[IO]], Boolean) =
+          env.copy(_1 = span)
+      }
 
-    val tracer: Tracer[WriterT[F, List[Span], *]] = new TestTracer[F]
+    val tracer = new TestTracer[F]
 
     val conditionalTracer = tracer.conditional(WriterT.liftF {
-      Kleisli.ask[IO, (Option[Span], Boolean)].map(_._2)
+      Kleisli.ask[IO, (Option[SpanRef[IO]], Boolean)].map(_._2)
     })
 
     conditionalTracer.trace("operation")(WriterT.value(42)).written.run(env).unsafeRunSync()
