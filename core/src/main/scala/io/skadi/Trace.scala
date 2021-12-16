@@ -19,7 +19,6 @@ package io.skadi
 import cats.arrow.FunctionK
 import cats.{Applicative, Monad}
 import cats.data.{Kleisli, WriterT}
-import cats.effect.Sync
 import cats.kernel.Monoid
 import cats.syntax.all._
 
@@ -79,8 +78,8 @@ trait Trace[F[_]] {
 
 object Trace extends TraceInstances {
 
-  implicit def kleisliScopedTrace[F[_], Env](
-      implicit F: Sync[F],
+  implicit def kleisliTrace[F[_], Env](
+      implicit F: Monad[F],
       hasSpan: HasSpan[F, Env]
   ): Trace[Kleisli[F, Env, *]] = new Trace[Kleisli[F, Env, *]] {
 
