@@ -158,7 +158,8 @@ lazy val sharedSettings = Seq(
       url("https://github.com/sergeykolbasov")
     )
   ),
-  addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
+  sonatypeCredentialHost := "s01.oss.sonatype.org"
 )
 
 lazy val noPublish = Seq(
